@@ -7,6 +7,8 @@ pub mod extension;
 pub mod filter;
 pub mod finality;
 #[cfg(feature = "gpu")]
+pub mod cuda_walk;
+#[cfg(feature = "gpu")]
 pub mod gpu_mining;
 pub mod mmr;
 pub mod mss;

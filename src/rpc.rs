@@ -17,7 +17,7 @@
 //!
 //! | method | path | purpose |
 //! |---|---|---|
-//! | GET | `/state` | tip, supply, peers (and those banned), sync and mining status |
+//! | GET | `/state` | tip, supply, peers (and those banned), sync and mining status (with the backends mining the walk) |
 //! | GET | `/blocks/{start}/{count}` | hex-encoded blocks, for wallet scanning |
 //! | GET | `/headers/{start}/{count}` | hex-encoded headers |
 //! | GET | `/utxo/{commitment}` | whether an output is unspent |
@@ -472,6 +472,16 @@ fn html_escape(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
+#[cfg(feature = "gpu")]
+fn mining_backends(total: u64) -> Value {
+    json!(crate::core::cuda_walk::backend_status(total))
+}
+
+#[cfg(not(feature = "gpu"))]
+fn mining_backends(_total: u64) -> Value {
+    json!([])
+}
+
 async fn state(AxState(node): AxState<NodeHandle>) -> Json<Value> {
     let info = node.info();
     let s = &info.state;
@@ -509,6 +519,10 @@ async fn state(AxState(node): AxState<NodeHandle>) -> Json<Value> {
         "mempool_weight": info.mempool_weight,
         "mining": info.mining,
         "hashes": info.hashes,
+        // What this node's own miner hashes the walk on, each with its
+        // attempts: CPU threads and CUDA GPUs (empty before it has mined
+        // a walk block, and in builds without the `gpu` feature).
+        "backends": mining_backends(info.hashes),
         // While the tip is a run of other producers' over-cap blocks: the
         // block this node's templates build on instead, and how many blocks
         // a block there replaces (`core::orphan`).

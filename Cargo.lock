@@ -2735,6 +2735,7 @@ dependencies = [
  "futures",
  "hex",
  "im",
+ "libloading",
  "libp2p",
  "libp2p-stream",
  "libp2p-webrtc",

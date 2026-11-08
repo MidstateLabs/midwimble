@@ -399,7 +399,27 @@ fn gpu_info() -> Result<()> {
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::INFO)
         .init();
-    use midwimble::core::gpu_mining;
+    use midwimble::core::{cuda_walk, gpu_mining};
+    // Midstate Walk: NVIDIA GPUs through the driver's CUDA, each checked
+    // against the walk's known answers.
+    match cuda_walk::devices() {
+        Ok(found) if found.is_empty() => out!("Midstate Walk: no CUDA GPU found"),
+        Ok(found) => {
+            for d in found {
+                match cuda_walk::CudaWalker::open(d.index, None) {
+                    Ok(w) => out!(
+                        "Midstate Walk: CUDA {}: {} ({} walks at a time): passed the self-test",
+                        d.index,
+                        d.name,
+                        cuda_walk::WalkBatcher::capacity(&w)
+                    ),
+                    Err(e) => out!("Midstate Walk: CUDA {}: {}: not usable: {e}", d.index, d.name),
+                }
+            }
+        }
+        Err(e) => out!("Midstate Walk: no CUDA GPU ({e})"),
+    }
+    // The BLAKE3 chain: any GPU wgpu can drive.
     let n = gpu_mining::gpu_device_count();
     out!("{} GPU(s) passed the shader self-test", n);
     for g in gpu_mining::shared_all() {
@@ -410,7 +430,7 @@ fn gpu_info() -> Result<()> {
         let counter = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
         let target = [0xffu8; 32];
         let start = std::time::Instant::now();
-        // The GPU kernel is the BLAKE3 chain's; Midstate Walk is CPU-only.
+        // The wgpu kernel is the BLAKE3 chain's.
         let found = gpu_mining::mine(
             midwimble::core::types::PowAlgo::Blake3Chain,
             [7u8; 32],

@@ -385,8 +385,8 @@ fn detect() -> Backend {
     Backend::Portable
 }
 
-/// The AES S-box (FIPS-197 Figure 7).
-const SBOX: [u8; 256] = [
+/// The AES S-box (FIPS-197 Figure 7). The CUDA miner builds its tables from it.
+pub(crate) const SBOX: [u8; 256] = [
     0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
     0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
     0xb7, 0xfd, 0x93, 0x26, 0x36, 0x3f, 0xf7, 0xcc, 0x34, 0xa5, 0xe5, 0xf1, 0x71, 0xd8, 0x31, 0x15,
@@ -540,6 +540,53 @@ mod arm {
     }
 }
 
+// ── Known answers ───────────────────────────────────────────────────────────
+
+/// Pinned outputs, as (mining hash, nonce, proof-of-work hash) in hex, the
+/// same as midstate's. Cross-checked against two independent implementations
+/// written from the definition above (midstate's `docs/walk-reference`):
+/// a Python one (S-box derived from GF(2^8) inversion) and a C one run on
+/// an emulated Cortex-A76 through the ARMv8 AES instructions. Changing
+/// any of these is a hard fork. The CUDA miner (`cuda_walk`) runs them on
+/// each GPU before mining on it.
+#[cfg(not(feature = "fast-mining"))]
+pub const GOLDEN: [(&str, u64, &str); 3] = [
+    (
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        0,
+        "a934fced2d9a53fb09d6abe089f3d2f5bba9a421b41ee5726233a525cc7438e7",
+    ),
+    (
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        u64::MAX,
+        "65d237f595f07bee156c635ad45f721987ce38d79ea14c89e40c5555613d0768",
+    ),
+    (
+        "374bf98b3b8f7f41a9e291154fc582a65bb3e14180cb9a07fef08e55f3006c50",
+        42,
+        "5f2da9d320de391aef28bcaab63e3d1a25402b4541cdff8680059a87c7d515b7",
+    ),
+];
+
+#[cfg(feature = "fast-mining")]
+pub const GOLDEN: [(&str, u64, &str); 3] = [
+    (
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        0,
+        "592cd5f394f7dc705343585a7cb48c58ce8da5f646dadb81af440e0d7a470e40",
+    ),
+    (
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        u64::MAX,
+        "f1488d17741b4eaaa909374c90ea70adfe89ceaa16d7ca8605c0da25f031e9f3",
+    ),
+    (
+        "374bf98b3b8f7f41a9e291154fc582a65bb3e14180cb9a07fef08e55f3006c50",
+        42,
+        "8f9d7f1d42826a15f81dbee9fd7e25ca3edee11776dfb48e078feebfeab2ab13",
+    ),
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -624,49 +671,6 @@ mod tests {
         m2[31] ^= 1;
         assert_ne!(a, walk_hash(&m2, 1));
     }
-
-    /// Pinned outputs. Cross-checked against two independent implementations
-    /// written from the definition above (midstate's `docs/walk-reference`):
-    /// a Python one (S-box derived from GF(2^8) inversion) and a C one run on
-    /// an emulated Cortex-A76 through the ARMv8 AES instructions. Changing
-    /// any of these is a hard fork.
-    #[cfg(not(feature = "fast-mining"))]
-    const GOLDEN: [(&str, u64, &str); 3] = [
-        (
-            "0000000000000000000000000000000000000000000000000000000000000000",
-            0,
-            "a934fced2d9a53fb09d6abe089f3d2f5bba9a421b41ee5726233a525cc7438e7",
-        ),
-        (
-            "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-            u64::MAX,
-            "65d237f595f07bee156c635ad45f721987ce38d79ea14c89e40c5555613d0768",
-        ),
-        (
-            "374bf98b3b8f7f41a9e291154fc582a65bb3e14180cb9a07fef08e55f3006c50",
-            42,
-            "5f2da9d320de391aef28bcaab63e3d1a25402b4541cdff8680059a87c7d515b7",
-        ),
-    ];
-
-    #[cfg(feature = "fast-mining")]
-    const GOLDEN: [(&str, u64, &str); 3] = [
-        (
-            "0000000000000000000000000000000000000000000000000000000000000000",
-            0,
-            "592cd5f394f7dc705343585a7cb48c58ce8da5f646dadb81af440e0d7a470e40",
-        ),
-        (
-            "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-            u64::MAX,
-            "f1488d17741b4eaaa909374c90ea70adfe89ceaa16d7ca8605c0da25f031e9f3",
-        ),
-        (
-            "374bf98b3b8f7f41a9e291154fc582a65bb3e14180cb9a07fef08e55f3006c50",
-            42,
-            "8f9d7f1d42826a15f81dbee9fd7e25ca3edee11776dfb48e078feebfeab2ab13",
-        ),
-    ];
 
     fn hex32(s: &str) -> [u8; 32] {
         let mut out = [0u8; 32];

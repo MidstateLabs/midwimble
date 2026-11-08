@@ -18,6 +18,7 @@ recovery design.
 | `core/mmr.rs`, `core/simd_mining.rs` | midstate | plus marked additions (MMR prefix truncation, multi-seed SIMD verification) |
 | `core/wots.rs`, `core/mss.rs` | midstate | key-reuse punishment section dropped; MSS checkpoint file keyed by seed (see *Upstream bug*) |
 | `core/gpu_mining.rs` | midstate | wgpu 30 fix and opt-in software adapters (for testing only) |
+| `core/cuda_walk.rs`, `core/cuda/walk_miner.ptx` | midstate | CUDA miner for Midstate Walk; the PTX byte for byte |
 | `network/amino.rs` | midstate | verbatim except the rendezvous label |
 | `network/*`, `core/state.rs`, `core/types.rs`, `core/filter.rs` | midstate | MW payloads, `/midwimble/*` protocol ids, no activation heights |
 | `sync.rs`, `node.rs`, `mempool.rs`, `storage.rs`, `miner.rs`, `pool.rs` | midstate (design) | re-implemented around the MW core |
@@ -272,7 +273,7 @@ Midstate anchors serve as the horizon instead.
 
 ```sh
 cargo build --release                                  # node, wallet, pool, merged miner, anchoring
-cargo build --release --features gpu                   # + midstate's wgpu miner
+cargo build --release --features gpu                   # + midstate's GPU miners (wgpu, CUDA for the walk)
 cargo test --features fast-mining                      # 190 unit, 16 integration, 11 doc tests
 cargo test --lib                                       # production constants (165 tests)
 cargo test --no-default-features --features fast-mining --lib   # core only (159 tests)
@@ -294,10 +295,36 @@ The integration tests run real nodes on localhost:
 | `pool` (1) | two auditing miners paid in coinbases; fee to the operator; supply audit holds |
 | `quantum_recovery` (3) | an attacker holding every elliptic-curve secret cannot claim anchored coins while owners can; a genuinely broken commitment binding still cannot inflate a claim; anchoring round trip with chained checkpoints and tamper detection |
 | `pruning` (3) | an anchored checkpoint finalizes, bodies are pruned and a new node bootstraps from the snapshot to the same state root; a heavier chain cannot reorganise below the floor; a wallet restores from a pruned node |
+| `cuda_walk_search` (1, `gpu`) | the CUDA walk search with stand-in GPUs: CPU, GPU and both; a pool's next share from the same job; a GPU's wrong answers discarded; cancel; no GPU falls back to the CPU; each height's proof of work goes to the right miner across 37,300 and 371,500 |
+| `cuda_walk_merge` (1, `gpu`) | merged mining across both switches: merged on the BLAKE3 chain, paused while only midwimble has switched, resumed on the (stand-in) GPUs once midstate has |
 
 **GPU.** `midwimble gpu-info` runs midstate's shader self-test. It was
 verified here on Mesa llvmpipe (software Vulkan), including chains split across
 many dispatches, via `MIDWIMBLE_GPU_ALLOW_SOFTWARE=1`. It has not been tested
+on real GPU hardware.
+
+**Midstate Walk on NVIDIA GPUs.** From block 37,300 (and for a merged-mined
+midstate parent, from midstate's 371,500), a `--features gpu` build mines the
+walk through CUDA as well: midstate's kernels, loaded through the NVIDIA
+driver when mining starts, so neither building nor running needs a CUDA
+toolkit, and a machine without the driver mines on its CPU as before.
+`gpu-info` lists the CUDA GPUs and runs the walk's known answers on each;
+a GPU that gets one wrong is not used, and every hash a GPU reports is
+recomputed on the CPU before it becomes a share or a block. Every mining
+command takes the same settings:
+
+| Setting | Effect on the walk |
+|---|---|
+| `--backend auto` (default) | CUDA GPUs and `--threads` CPU threads together |
+| `--backend gpu` | CUDA GPUs only (the CPU if there are none) |
+| `--backend cpu` | CPU threads only |
+| `MINER_DISABLE_GPU=1` | no GPU at all, whatever `--backend` says |
+| `MINER_CUDA_DEVICES=0,2` | only these CUDA devices (default: every one) |
+| `MINER_CUDA_WALKS=n` | walks per batch on each GPU (default: sized to the card) |
+
+The CPU and the GPUs never try the same nonce, and a stale job stops within
+tens of milliseconds. The BLAKE3 chain below the switches is mined as before.
+The CUDA path is tested here with CPU stand-ins for GPUs; it has not been run
 on real GPU hardware.
 
 ## Usage

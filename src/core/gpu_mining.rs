@@ -1658,8 +1658,10 @@ pub fn backend() -> Backend {
 /// `threads` is forwarded to the CPU path and ignored by the GPU path (the GPU
 /// is the parallelism). `MINER_DISABLE_GPU=1` also forces CPU regardless.
 ///
-/// The GPU kernel computes the BLAKE3 chain only: Midstate Walk is mined on
-/// the CPU whatever the backend.
+/// This module's wgpu kernel computes the BLAKE3 chain. Midstate Walk goes to
+/// [`super::cuda_walk`] instead: NVIDIA GPUs through CUDA, beside `threads`
+/// CPU threads under `Auto`, alone under `Gpu`, and the CPU alone under `Cpu`,
+/// or wherever no CUDA GPU is usable.
 pub fn mine(
     algo: crate::core::types::PowAlgo,
     midstate: [u8; 32],
@@ -1669,14 +1671,14 @@ pub fn mine(
     cancel: Arc<AtomicBool>,
     hash_counter: Arc<AtomicU64>,
 ) -> Option<MiningResult> {
-    if algo == crate::core::types::PowAlgo::Walk {
-        if backend() == Backend::Gpu {
-            static WARNED: std::sync::Once = std::sync::Once::new();
-            WARNED.call_once(|| {
-                tracing::warn!("GPU backend requested, but Midstate Walk is CPU-only; mining on CPU")
-            });
-        }
-        return mine_extension(algo, midstate, target, pool_target, threads, cancel, hash_counter);
+    if super::cuda_walk::mines(algo) {
+        use super::cuda_walk::Split;
+        let split = match backend() {
+            Backend::Cpu => Split::Cpu,
+            Backend::Gpu => Split::Gpu,
+            Backend::Auto => Split::Both,
+        };
+        return super::cuda_walk::mine_walk(split, midstate, target, pool_target, threads, cancel, hash_counter);
     }
     let want_gpu = backend() != Backend::Cpu;
     if want_gpu {

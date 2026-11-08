@@ -19,8 +19,9 @@ node = [
 webrtc = ["node", "dep:libp2p-webrtc"]
 # Short PoW chains and an easy genesis target, for tests and local devnets.
 fast-mining = []
-# midstate's wgpu GPU miner (Vulkan / Metal / DX12 / GL).
-gpu = ["dep:wgpu", "dep:pollster", "dep:bytemuck", "dep:toml"]
+# midstate's GPU miners: wgpu for the BLAKE3 chain (Vulkan / Metal / DX12 /
+# GL), and CUDA for Midstate Walk (the NVIDIA driver, loaded at run time).
+gpu = ["dep:wgpu", "dep:pollster", "dep:bytemuck", "dep:toml", "dep:libloading"]
 
 [dependencies]
 # ── shared core ────────────────────────────────────────────────────────────
@@ -74,6 +75,10 @@ wgpu = { version = "30", optional = true }
 pollster = { version = "0.4", optional = true }
 bytemuck = { version = "1", optional = true, features = ["derive"] }
 toml = { version = "0.8", optional = true }
+# Loads the NVIDIA driver for CUDA Walk mining when it starts, so a build
+# needs no CUDA toolkit and runs where there is no driver (already in the
+# lock file, through wgpu).
+libloading = { version = "0.8", optional = true }
 
 [dev-dependencies]
 rcgen = "0.13"
@@ -105,6 +110,14 @@ required-features = ["node", "fast-mining"]
 [[test]]
 name = "pruning"
 required-features = ["node", "fast-mining"]
+
+[[test]]
+name = "cuda_walk_search"
+required-features = ["gpu"]
+
+[[test]]
+name = "cuda_walk_merge"
+required-features = ["node", "fast-mining", "gpu"]
 
 [profile.dev]
 opt-level = 1

@@ -143,6 +143,14 @@ pub fn algos_near(tip_height: u64) -> Vec<PowAlgo> {
     }
 }
 
+/// A CPU thread's next nonce: random, below 2^63. The CUDA Walk miner's
+/// nonces all have the top bit set (`cuda_walk`), so the CPU and the GPUs
+/// never try the same one in a job they share. Which nonce is tried is no
+/// rule: any nonce is valid.
+pub fn cpu_nonce() -> u64 {
+    rand::random::<u64>() >> 1
+}
+
 /// Mine: try nonces until one produces a final_hash below target.
 /// Spawns one worker per available core, each trying independent nonces.
 /// Uses an AtomicBool to instantly abort if a peer solves the block first.
@@ -218,7 +226,7 @@ pub fn mine_extension(
                     // Generate N random nonces where N = SIMD width (4 NEON, 8 AVX2)
                     let mut nonces = [0u64; 8]; // Max width for AVX2. Stack allocated.
                     for i in 0..lanes {
-                        nonces[i] = rand::random();
+                        nonces[i] = cpu_nonce();
                     }
 
                     attempts += lanes as u64;
@@ -314,7 +322,7 @@ fn mine_extension_single(
 
         let mut nonces = [0u64; 8];
         for i in 0..lanes {
-            nonces[i] = rand::random();
+            nonces[i] = cpu_nonce();
         }
 
         attempts += lanes as u64;
