@@ -8,7 +8,10 @@
 //! `cuda/walk_miner.ptx` is midstate's file, byte for byte: the benchmark's
 //! own walk (`walk_core.h`, which midstate's CI checks against its
 //! `walk.rs`, the same walk as [`walk`] here), compiled to PTX by midstate's
-//! `src/core/cuda/gen_ptx.sh`. The driver compiles the PTX for whatever card
+//! `src/core/cuda/gen_ptx.sh`, whose CI also runs the PTX itself on the CPU
+//! against the known answers (`ptx_check.cpp`): the first PTX, from v1.3.1,
+//! had a 64-bit rotate clang compiled wrongly, and every GPU failed its
+//! self-test and mined nothing. The driver compiles the PTX for whatever card
 //! it finds, so nothing here needs a CUDA toolkit, at build time or at run
 //! time: only the NVIDIA driver, which is loaded when mining starts
 //! (`libcuda.so.1`, `nvcuda.dll`). A machine without one mines on its CPU, as
@@ -1024,6 +1027,10 @@ mod tests {
         assert!(PTX.contains(".visible .const .align 4 .b8 ms_keys[96]"));
         assert!(!PTX.contains(".local"), "a kernel spills to local memory");
         assert!(PTX.starts_with("// sources sha256 "));
+        // clang's software 64-bit rotate, which shifts by the amount unreduced
+        // and gives 0 for most amounts: the first PTX had it, and every GPU
+        // failed the known answers (midstate's walk_core.h, rotr64).
+        assert!(!PTX.contains(".reg .b64 %lhs"), "a 64-bit rotate clang compiles wrongly");
     }
 
     /// The PTX is midstate's, from the sources this hash names (midstate's
@@ -1032,7 +1039,7 @@ mod tests {
     #[test]
     fn the_ptx_is_midstates() {
         let first = PTX.lines().next().unwrap();
-        assert_eq!(first, "// sources sha256 62e6bba9b20b2514baf505b7315ee32d062e6a9489a73b367b09f9a9d231a445");
+        assert_eq!(first, "// sources sha256 f10ffc0b5e86aa820c6d784ed70231b727c2cc73a74829135ead7222a195c4fa");
     }
 
     #[test]
