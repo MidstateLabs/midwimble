@@ -29,6 +29,8 @@
 //! | POST | `/mining/template` | `{"payouts": [{"address", "weight"}], "extra"?}` → template, mining hash, receipts |
 //! | POST | `/mining/bind` | `{"mining_hash", "extras": [hex]}` → one copy of that template per `extra`, re-signed |
 //! | POST | `/mining/submit` | `{"block_hex"}` solved block (native or merged-mined) |
+//! | GET | `/co-bonds` | this node's mining key, its bond's id, and the co-bonds it signs with |
+//! | POST | `/co-bonds` | `{"script", "value", "salt"}` hand in a co-bond by its coin; the node registers it |
 
 use crate::core::mw::{StealthAddress, Transaction};
 use crate::network::protocol::BATCH_RESPONSE_SOFT_LIMIT;
@@ -85,6 +87,7 @@ pub fn router_with(node: NodeHandle, options: &RpcOptions, index: SharedIndex) -
         .route("/relay", get(relay))
         .route("/merge/job", post(merge_job))
         .route("/merge/found", post(merge_found))
+        .route("/co-bonds", get(co_bonds_list).post(co_bonds_add))
         .route("/miners/{start}/{count}", get(miners))
         .route("/headers/{start}/{count}", get(headers))
         .route("/utxo/{commitment}", get(utxo))
@@ -896,6 +899,43 @@ async fn merge_found(
     Ok(Json(
         json!({ "accepted": true, "height": height, "merged_mined": merged }),
     ))
+}
+
+/// This node's mining key and the co-bonds it signs with: what a pool shows
+/// the people who would co-bond with it (`co_bonds`).
+async fn co_bonds_list(AxState(node): AxState<NodeHandle>) -> ApiResult {
+    let book = node
+        .co_bonds()
+        .ok_or_else(|| bad("this node mines with no bond (--mining-bond), so it takes no co-bonds"))?;
+    let (key, id, list) = tokio::task::spawn_blocking(move || (book.mining_key(), book.bond_id(), book.list()))
+        .await
+        .map_err(bad)?;
+    Ok(Json(json!({ "mining_key": key, "bond_id": id, "co_bonds": list })))
+}
+
+#[derive(Deserialize)]
+struct CoBondBody {
+    /// The bond's script (hex), its value and its salt (hex): the coin.
+    script: String,
+    value: u64,
+    salt: String,
+}
+
+/// Hands in a co-bond by its coin: a bond someone locked on midstate naming
+/// this node's mining key. The node registers it and signs with it. `new` is
+/// false when the node already knew the bond.
+async fn co_bonds_add(AxState(node): AxState<NodeHandle>, Json(body): Json<CoBondBody>) -> ApiResult {
+    let book = node
+        .co_bonds()
+        .ok_or_else(|| bad("this node mines with no bond (--mining-bond), so it takes no co-bonds"))?;
+    let script = hex::decode(body.script.trim()).map_err(bad)?;
+    let script = crate::core::bond::BondScript::parse(&script).map_err(|e| bad(format!("not a bond script: {e:#}")))?;
+    let coin = crate::core::bond::BondCoin { script, value: body.value, salt: hex32_of(body.salt.trim())? };
+    let (view, new) = tokio::task::spawn_blocking(move || book.add(coin))
+        .await
+        .map_err(bad)?
+        .map_err(|e| bad(format!("{e:#}")))?;
+    Ok(Json(json!({ "co_bond": view, "new": new })))
 }
 
 fn hex32_of(s: &str) -> std::result::Result<[u8; 32], (StatusCode, Json<Value>)> {

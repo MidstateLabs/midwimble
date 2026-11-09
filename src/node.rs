@@ -295,7 +295,11 @@ pub struct NodeHandle {
     info: Arc<RwLock<NodeInfo>>,
     storage: Storage,
     commands: mpsc::UnboundedSender<Command>,
-    mining_bond: Option<crate::core::bond::MinerBond>,
+    /// What this node's templates sign with: its bond, and its co-bonds as
+    /// they stand (those `co_bonds` takes while it runs included).
+    mining_bond: Arc<RwLock<Option<crate::core::bond::MinerBond>>>,
+    /// Co-bonds handed in while it runs, when it mines with a bond.
+    co_bonds: Option<Arc<crate::co_bonds::CoBondBook>>,
     relay_feed: Arc<RwLock<RelayFeed>>,
 }
 
@@ -307,7 +311,12 @@ impl NodeHandle {
 
     /// The bond this node signs templates with, for the template RPC.
     pub fn mining_bond(&self) -> Option<crate::core::bond::MinerBond> {
-        self.mining_bond.clone()
+        self.mining_bond.read().expect("mining bond lock poisoned").clone()
+    }
+
+    /// The co-bonds this node takes while it runs, if it mines with a bond.
+    pub fn co_bonds(&self) -> Option<Arc<crate::co_bonds::CoBondBook>> {
+        self.co_bonds.clone()
     }
 
     pub fn info(&self) -> NodeInfo {
@@ -683,6 +692,11 @@ pub struct Node {
     /// Midstate headers to relay, from bond files and the midstate feeder.
     relay_feed: Arc<RwLock<RelayFeed>>,
     feeder: Option<tokio::task::JoinHandle<()>>,
+    /// What this node's templates sign with (shared with its handle).
+    mining_bond: Arc<RwLock<Option<crate::core::bond::MinerBond>>>,
+    /// Co-bonds handed in while it runs, and the task working through them.
+    co_bonds: Option<Arc<crate::co_bonds::CoBondBook>>,
+    co_bonder: Option<tokio::task::JoinHandle<()>>,
     snapshot_cache: Option<([u8; 32], Arc<Vec<u8>>)>,
     snapshot_building: Option<[u8; 32]>,
 }
@@ -811,8 +825,20 @@ impl Node {
             }
         }
         let relay_feed = Arc::new(RwLock::new(feed));
+        let mining_bond = Arc::new(RwLock::new(config.mining_bond.clone()));
+        let co_bonds = config.mining_bond.clone().map(|started| {
+            Arc::new(crate::co_bonds::CoBondBook::open(
+                config.data_dir.join("co-bonds.json"),
+                config.midstate_rpc.clone(),
+                started,
+                mining_bond.clone(),
+                relay_feed.clone(),
+                info.clone(),
+            ))
+        });
         let handle = NodeHandle {
-            mining_bond: config.mining_bond.clone(),
+            mining_bond: mining_bond.clone(),
+            co_bonds: co_bonds.clone(),
             info: info.clone(),
             storage: storage.clone(),
             commands: cmd_tx,
@@ -871,6 +897,9 @@ impl Node {
             serving_total: 0,
             relay_feed,
             feeder: None,
+            mining_bond,
+            co_bonds,
+            co_bonder: None,
             snapshot_cache: None,
             snapshot_building: None,
         };
@@ -893,6 +922,7 @@ impl Node {
             t.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         }
         self.start_feeder();
+        self.start_co_bonder();
         self.refresh_mining();
         self.publish_info();
 
@@ -911,6 +941,9 @@ impl Node {
                         self.miner.stop();
                         if let Some(feeder) = self.feeder.take() {
                             feeder.abort();
+                        }
+                        if let Some(co_bonder) = self.co_bonder.take() {
+                            co_bonder.abort();
                         }
                         tracing::info!("Node shutting down");
                         return Ok(());
@@ -3693,7 +3726,7 @@ impl Node {
         // Signed as this node's bond, whose registration rides in its blocks
         // (taking room from transactions) until the chain has it, as do the
         // midstate headers the relay lacks.
-        let bond = self.config.mining_bond.clone();
+        let bond = self.mining_bond.read().expect("mining bond lock poisoned").clone();
         let payouts = [(payout, 1u64)];
         let pool = self.mempool.candidates();
         let feed = self.relay_feed.read().expect("relay feed lock poisoned");
@@ -3840,7 +3873,8 @@ impl Node {
         if headers.last().map(|h| h.extension.final_hash) != Some(self.state.header_hash) {
             return None;
         }
-        let bond = self.config.mining_bond.as_ref();
+        let bond = self.mining_bond.read().expect("mining bond lock poisoned").clone();
+        let bond = bond.as_ref();
         let ours = |id: &[u8; 32]| {
             bond.is_some_and(|b| b.bond_id == *id || b.co_bonds.iter().any(|c| c.bond_id == *id))
         };
@@ -3882,6 +3916,25 @@ impl Node {
             .read()
             .expect("relay feed lock poisoned")
             .next_for(&self.state.relay)
+    }
+
+    /// Works through the co-bonds handed in while this node runs
+    /// (`co_bonds`), a step at a time, off the event loop.
+    fn start_co_bonder(&mut self) {
+        let Some(book) = self.co_bonds.clone() else {
+            return;
+        };
+        self.co_bonder = Some(tokio::spawn(async move {
+            let mut tick = tokio::time::interval(Duration::from_secs(crate::co_bonds::TICK_SECS));
+            tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+            loop {
+                tick.tick().await;
+                let book = book.clone();
+                if tokio::task::spawn_blocking(move || book.tick()).await.is_err() {
+                    tracing::warn!("a co-bond step stopped unexpectedly; the next look retries");
+                }
+            }
+        }));
     }
 
     /// Polls the configured midstate node for headers past the relay's tip,

@@ -10,6 +10,8 @@ pub mod core;
 #[cfg(feature = "node")]
 pub mod anchor;
 #[cfg(feature = "node")]
+pub mod co_bonds;
+#[cfg(feature = "node")]
 pub mod explorer;
 #[cfg(feature = "node")]
 pub mod finality;

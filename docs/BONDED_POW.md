@@ -583,6 +583,26 @@ carries at startup, carries the registrations in its blocks one a block (each
 once the relay buries its header), and signs each block with whichever bond,
 its own or a co-bond, has the most quota left.
 
+**Without files.** A node with `--mining-bond` also takes co-bonds while it
+runs, from no more than the coin (`src/co_bonds.rs`):
+
+```text
+GET  /co-bonds   → { mining_key, bond_id, co_bonds: [{ bond_id, value, bonded_until, phase, progress, note }] }
+POST /co-bonds   { script, value, salt }   → { co_bond, new }
+```
+
+The node takes only a bond on its own key, whose coin is on midstate, large
+enough and locked long enough to register now. Then it registers the bond
+itself, as `midwimble bond register` does, through the midstate node its
+relay reads (`--midstate-rpc`). It takes a proof of the coin, waits for a day
+of work above it, carries the registration in its next blocks, and takes a
+fresh proof whenever the relay's window is about to pass the old one. It
+keeps the co-bonds in `co-bonds.json` in its data directory, and signs with
+each once it is ready. A pool built on `midstate pool` publishes its key and
+takes hand-ins this way (`/pool/api/co-bonds`), so a co-bonder's wallet does
+the rest and nobody passes files about. The RPC is loopback-only, as the
+rest of it is: the pool in front of it decides whose hand-ins reach it.
+
 ## Orphaning over-cap blocks
 
 An over-cap block stays valid, but adds only 1/1024 of its work to fork
@@ -644,10 +664,11 @@ replaced; a payment is settled by its full-weight confirmations.
 
 ## Still to build
 
-- **Paying co-bond contributors.** The node signs with co-bonds, but the
-  pool does not yet record whose bond signed each block or pay its owner.
-  A per-block rent to the signing bond's owner, or a share split by bond
-  value, is pool policy still to decide and build.
+- **Paying co-bond contributors by the block.** A pool built on `midstate
+  pool` can share its fee among the co-bonds signing for it and cut their
+  owners' fees (`--co-bond-reward`, `--co-bond-fee-cut`), evenly per bond. It
+  does not record which bond signed each block, so a rent per signed block
+  is still to build.
 - **One-step unbonding in the midstate wallet.** Spending a bond already
   works through `spend-script`, but a dedicated command could fill in the
   script and witness itself.

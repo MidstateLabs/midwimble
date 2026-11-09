@@ -21,8 +21,9 @@ miners the fractured wallet that importing mined coinbases produces.
   quota.
 - **Co-bonders** supply the extra bonds. A co-bonder locks their own MDS in a
   bond naming the pool's mining key and keeps the owner key, so only they can
-  ever spend it. The operator adds each one with `--co-bond <file>`, and the
-  node signs every block with whichever bond has the most quota left
+  ever spend it. The node takes them while it runs (`POST /co-bonds`, which a
+  `midstate pool` in front of it publishes), or at startup with `--co-bond
+  <file>`, and signs every block with whichever bond has the most quota left
   (`docs/BONDED_POW.md`, "Co-bonding and the per-bond cap").
 - **Miners** keep mining midstate shares exactly as now, and never need a
   bond. (Both chains switch from the BLAKE3 chain to Midstate Walk, each at
@@ -149,6 +150,8 @@ A pool's bonds are capital locked so that its miners' blocks count in full.
 How they are paid for is pool policy, not consensus: for example, a bond fee
 taken from each midwimble coinbase and paid to the owner of the bond that
 signed the block, whether that is the operator or a co-bonder. Paid in the
-coinbase, it is as provable as the miners' payouts. None of this is built yet:
-`/merge/job` does not report which bond will sign, and a co-bond file carries
-no payout address.
+coinbase, it is as provable as the miners' payouts. `midstate pool` does this
+evenly per bond: a co-bond handed in with a midwimble address shares in the
+pool's fee and cuts that address's own fee (`--co-bond-reward`,
+`--co-bond-fee-cut`). A rent for the bond that signed each block is not built:
+`/merge/job` does not report which bond will sign.
