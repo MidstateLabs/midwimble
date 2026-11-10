@@ -321,11 +321,21 @@ command takes the same settings:
 | `MINER_DISABLE_GPU=1` | no GPU at all, whatever `--backend` says |
 | `MINER_CUDA_DEVICES=0,2` | only these CUDA devices (default: every one) |
 | `MINER_CUDA_WALKS=n` | walks per batch on each GPU (default: sized to the card) |
+| `MINER_WALKS_PER_THREAD=1`..`4` | walks each CPU thread steps in turn (default: measured) |
 
 The CPU and the GPUs never try the same nonce, and a stale job stops within
 tens of milliseconds. The BLAKE3 chain below the switches is mined as before.
-The CUDA path is tested here with CPU stand-ins for GPUs; it has not been run
-on real GPU hardware.
+The CUDA path is tested here with CPU stand-ins for GPUs, and since v1.3.1's
+PTX fix it has mined on a Quadro M6000 at 819 attempts/s.
+
+A Walk step waits on its load from the pad, so a CPU thread can step several
+walks of other nonces in turn and fill those waits, as long as their pads
+still fit the core's caches. Before its first Walk job, the CPU miner times 1
+to 4 walks per thread on all its threads (about 6 s, once per process),
+checks the known answers that way, mines with the fastest, and logs the
+rates. On a Pi 5 that is one; on a 2-core Xeon with 2 MiB of L2 a core,
+three did 78% more than one walk per thread with midstate v6.4.0's loop.
+Each hash is exactly its nonce's walk (`core/walk.rs`, midstate's, whole).
 
 ## Usage
 
