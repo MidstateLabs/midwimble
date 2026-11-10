@@ -4,7 +4,7 @@ midwimble is a privacy chain. it's merge-mined with midstate and anchored to it.
 
 this guide is about how to mine it, and nothing else. it isn't advice on whether you should.
 
-**heads up: from block 37,300 (around 10 november 2026) the proof of work is midstate walk.** it runs on cpu cores, and a raspberry pi 5 is the smallest machine that mines it well. nvidia gpus mine it too, through cuda, in a build with gpu support (the release binaries are): `--backend auto` uses the gpus and the cpu together, `--backend gpu` the gpus alone. other gpus don't help with it. run v1.3-DIMEBAG or later before then, and v6.2.0 or later on any midstate node (older builds switch at 86,400 and 420,000, and split off). midstate makes the same switch a few hours later, at its block 371,500, and merged mining pauses in between.
+**heads up: from block 37,300 (around 10 november 2026) the proof of work is midstate walk.** it runs on cpu cores, and a raspberry pi 5 is the smallest machine that mines it well. nvidia gpus mine it too, through cuda, in a build with gpu support (the release binaries are), from v1.3.2-DIMEBAG: v1.3.1's gpu code got every answer wrong, so its gpus sat out. `--backend auto` uses the gpus and the cpu together, `--backend gpu` the gpus alone. other gpus don't help with it. run v1.3-DIMEBAG or later before then, and v6.2.0 or later on any midstate node (older builds switch at 86,400 and 420,000, and split off). midstate makes the same switch a few hours later, at its block 371,500, and merged mining pauses in between.
 
 ---
 
@@ -146,7 +146,7 @@ it builds, checks you're on the real chain, then walks you through locking and r
    - `--mine-to`: your midwimble address (path a, step 3)
    - `--mining-bond`: the bond file
    - `--midstate-rpc`: your midstate node. every producer should set it, since registrations need the headers it relays
-   - `--backend`: `auto` (default), `gpu` or `cpu`. gpu needs a build with gpu support. `midwimble gpu-info` tests your card. for the walk, `auto` mines on nvidia gpus and the cpu together; `MINER_DISABLE_GPU=1` keeps it on the cpu, `MINER_CUDA_DEVICES=0,1` picks cards
+   - `--backend`: `auto` (default), `gpu` or `cpu`. gpu needs a build with gpu support. `midwimble gpu-info` tests your card. for the walk, `auto` mines on nvidia gpus and the cpu together; `MINER_DISABLE_GPU=1` keeps it on the cpu, `MINER_CUDA_DEVICES=0,1` picks cards. the cpu miner works out how many walks each thread should run at once when it starts (one on a pi 5, more on cpus with big caches); `MINER_WALKS_PER_THREAD=1` to `4` sets it
 
    want to mine midstate and midwimble in one search instead? start the node **without** `--mine-to` (so it doesn't hash on its own), then let `merge-mine` do the hashing:
    ```
