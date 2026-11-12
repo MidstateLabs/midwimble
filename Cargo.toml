@@ -1,6 +1,6 @@
 [package]
 name = "midwimble"
-version = "0.1.0"
+version = "1.4.0-DIMEBAG"
 edition = "2021"
 license = "GPL-3.0-or-later"
 description = "Midstate's network and consensus layers carrying Pluribit-style MimbleWimble transactions"

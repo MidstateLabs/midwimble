@@ -318,6 +318,7 @@ deterministic from midwimble's chain alone.
 | `RELAY_WINDOW` | 2,880 | Two days of midstate headers kept: registrations and forks must be this recent. |
 | `RELAY_MAX_FUTURE` | 30 minutes | How far a relayed header's timestamp may be past its block's: twice the future limit of either chain, so real headers always fit and fake ones cannot claim time that has not passed. |
 | `CAP_WINDOW`, `CAP_K` | 1,440 blocks, 360 | Four full-weight blocks a bond a day (the per-bond cap, below). |
+| `OVER_CAP_INVALID_FROM` | height 50,000 | From it, a block over its bond's cap is invalid rather than tapered and weighed as a sliver (`docs/OVER_CAP_INVALID.md`). About five and a half days after the 2026-11-12 UTC tip; 128 in test builds. |
 | `WORK_CAP_WINDOW` | 10,080 blocks (7 days) | No block counts for more than a quarter above the lowest of the week before it (the work cap, below). |
 
 ## How much work a registration needs
@@ -474,17 +475,27 @@ A pool's block capacity scales with the bonds behind it. Anyone can lock a
 bond naming the pool's mining key: they keep the owner key, so only they can
 ever spend the coin, and the pool signs blocks with the bond.
 
-**The cap is a fork-choice rule, not a validity rule.** Over any 1,440 blocks
-(`CAP_WINDOW`), a bond adds full work to its chain's weight for at most
-`ceil(1440 / min(eligible bonds, 360))` of them (`CAP_K = 360`): four blocks
-a day once 360 or more bonds are eligible. Blocks beyond that stay valid, but
-add only 1/1024 of their work, and from the mainnet switch they mint only
+**Below height 50,000 the cap is a fork-choice rule; from it, a validity
+rule.** Over any 1,440 blocks (`CAP_WINDOW`), a bond adds full work to its
+chain's weight for at most `ceil(1440 / min(eligible bonds, 360))` of them
+(`CAP_K = 360`): four blocks a day once 360 or more bonds are eligible. Below
+height 50,000 (`bond::OVER_CAP_INVALID_FROM`), blocks beyond that stay valid,
+but add only 1/1024 of their work, and from the mainnet switch they mint only
 `cap / n` of their subsidy, where `n` is how many of the window the bond has
 signed (`bond::capped_subsidy`). The rest is never minted by anyone. The
-explorer's burn tracker (`/#/burn`) totals it, by bond and over time. So:
+explorer's burn tracker (`/#/burn`) totals it, by bond and over time.
 
-- the chain never stalls: a lone producer can always extend it, and a longer
-  chain is always a heavier one;
+**From height 50,000 an over-cap block is invalid** (`bond::check_signer_cap`,
+in `state::apply_batch`): the same `n > cap` test, with no allowance, so a
+block at the cap is valid and counts in full and the next is rejected. This is
+a hard fork, and every over-cap block below the height stays valid. Why, what
+it changes and how to upgrade: `docs/OVER_CAP_INVALID.md`. So:
+
+- below the height the chain never stalls: a lone producer can always extend
+  it, and a longer chain is always a heavier one. From the height a valid
+  block needs a bond under its cap, so the bonds actually mining must have
+  quota for the window between them (`docs/OVER_CAP_INVALID.md`,
+  "Liveness");
 - to outweigh the honest chain, an attacker needs more full-weight blocks
   than it, so bonds of its own for every block it replaces, as well as more
   hashrate than the honest miners. More hashrate cannot stand in for bonds:
@@ -605,7 +616,11 @@ rest of it is: the pool in front of it decides whose hand-ins reach it.
 
 ## Orphaning over-cap blocks
 
-An over-cap block stays valid, but adds only 1/1024 of its work to fork
+From height 50,000 an over-cap block is invalid (`docs/OVER_CAP_INVALID.md`),
+so among upgraded nodes there is no run to orphan, and what follows applies to
+the chain below that height. It is left in place, unchanged.
+
+Below it, an over-cap block stays valid, but adds only 1/1024 of its work to fork
 choice, so one block that counts in full outweighs up to 1,023 of them. Nodes
 act on that (`core/orphan.rs`). While the tip is a run of other producers'
 over-cap blocks, a node builds on the last block before the run instead of
@@ -620,11 +635,11 @@ are held up by a block, not lost.
   bond is under its cap there too) and outweigh the whole run. Never past a
   block that counted in full, never past a block one of the node's own bonds
   signed (that would throw away its own pay), and never below the finalized
-  checkpoint. Of a longer run, a node replaces the latest 12 blocks by
-  default (`COMPATIBLE_ORPHAN_DEPTH`, below), and up to 100 with
-  `--max-orphan-depth` (`MAX_ORPHAN_DEPTH`, about an hour and forty
-  minutes).
-- **Consensus is unchanged:** fork choice has always taken the heavier chain.
+  checkpoint. Of a longer run, a node replaces the latest 100 blocks by
+  default (`MAX_ORPHAN_DEPTH`, about an hour and forty minutes), or 12
+  with `--max-orphan-depth 12` (`COMPATIBLE_ORPHAN_DEPTH`, below).
+- **Consensus is unchanged by orphaning:** fork choice has always taken the
+  heavier chain, and orphaning only decides where this node builds.
   A node takes a block on one of the last 100 blocks below its tip that
   outweighs its tip by itself as soon as it has checked it against the state
   there, without a sync session, and relays it on.
@@ -653,8 +668,8 @@ are held up by a block, not lost.
   than theirs, they asked past its tip, got no headers, and struck the peer
   for not backing its claim: banned at the third strike, for an hour,
   doubling for repeats. Hence the default of 12, which such a node can
-  follow with a few more of the run's blocks in hand. Raise
-  `--max-orphan-depth` once the network has upgraded.
+  follow with a few more of the run's blocks in hand. The default is now
+  100 (`MAX_ORPHAN_DEPTH`); `--max-orphan-depth 12` keeps the old limit.
 
 The explorer marks over-cap blocks, and counts a block's *full-weight
 confirmations* beside its confirmations: the full-weight blocks from it to

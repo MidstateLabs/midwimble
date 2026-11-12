@@ -464,6 +464,7 @@ fn register_step(
         .clone()
         .filter(|p| p.coin == coin)
         .filter(|p| p.midstate_height > anchor && !HeldProof::at(p.midstate_height, tip).needs_refresh());
+    let kept = keep.is_some();
     let proof = match keep {
         Some(p) => p,
         None => {
@@ -516,10 +517,30 @@ fn register_step(
         }
     }
     let run = run.ok_or_else(|| anyhow!("midstate returned no headers from block {start}"))?;
+    // A block carries at most MAX_RELAY_HEADERS_PER_BLOCK headers, so once a
+    // held proof has that many above it and still lacks its day of work, no
+    // later header can help it: the run is full. Its headers were mined at
+    // the difficulty of their time, which may be far below midwimble's now
+    // (just after a Walk switch, for one). Take a fresh proof at midstate's
+    // tip rather than hold a dead one until the relay window drops it.
+    if kept && credited < required && run.headers.len() >= MAX_RELAY_HEADERS_PER_BLOCK {
+        tracing::info!(
+            "co-bond {}: its proof at midstate block {} can carry only {}% of the work it needs; taking a fresh one",
+            hex::encode(coin.coin_id()),
+            proof.midstate_height,
+            credited * 100 / required.max(1),
+        );
+        f.proof = None;
+        f.registration = None;
+        f.midstate_headers = None;
+        return register_step(coin, Some(f), midstate, target, relay_tip);
+    }
     let registration = BondRegistration { proof };
     registration.check_carried(&run, target)?;
     let height = registration.proof.midstate_height;
     let burial = burial_headers(target, calculate_work(&run.headers[(height - run.start) as usize].target));
+    // Headers a block can carry above the proof, after any below it.
+    let room = (MAX_RELAY_HEADERS_PER_BLOCK as u64).saturating_sub(height - run.start + 1);
     f.registration = Some(registration);
     f.midstate_headers = Some(run);
 
@@ -536,10 +557,10 @@ fn register_step(
         });
     }
     let progress = (credited * 100 / required.max(1)).min(99) as u32;
-    let note = if burial >= RELAY_WINDOW {
+    let note = if burial >= RELAY_WINDOW || burial > room {
         format!(
-            "At midwimble's difficulty a proof needs about {burial} midstate blocks above it and the relay \
-             keeps only {RELAY_WINDOW}: no bond can register until the difficulty falls."
+            "At midwimble's difficulty a proof needs about {burial} midstate blocks above it and a block \
+             carries only {room}: no bond can register until midstate's difficulty rises or midwimble's falls."
         )
     } else {
         format!("Waiting for a day of midwimble's work above its proof: {progress}% there.")

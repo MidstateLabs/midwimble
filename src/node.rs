@@ -42,7 +42,7 @@ use crate::core::auxpow::verify_pow_near;
 use crate::core::filter::CompactFilter;
 use crate::core::mw::{Context, StealthAddress, Transaction};
 use crate::core::orphan::{
-    orphan_template, orphanable_run, OrphanBase, COMPATIBLE_ORPHAN_DEPTH, MAX_ORPHAN_DEPTH,
+    orphan_template, orphanable_run, OrphanBase, MAX_ORPHAN_DEPTH,
 };
 use crate::core::relay::{MidstateHeaders, RelayFeed};
 use crate::core::snapshot::Snapshot;
@@ -178,8 +178,9 @@ pub struct NodeConfig {
     pub orphan_over_cap: bool,
     /// The most blocks of such a run this node's blocks replace, at most
     /// [`MAX_ORPHAN_DEPTH`]: of a longer run, the latest this many.
-    /// [`COMPATIBLE_ORPHAN_DEPTH`] by default, which nodes from before the
-    /// sync fix for heavier but shorter chains can follow.
+    /// [`MAX_ORPHAN_DEPTH`] by default. [`COMPATIBLE_ORPHAN_DEPTH`] (12) is
+    /// still accepted, for nodes from before the sync fix for heavier but
+    /// shorter chains.
     pub max_orphan_depth: u64,
     /// Test builds only: extra time each synced header takes to verify,
     /// standing in for a slow machine.
@@ -212,7 +213,7 @@ impl NodeConfig {
             midstate_rpc: None,
             relay_poll: Duration::from_secs(20),
             orphan_over_cap: true,
-            max_orphan_depth: COMPATIBLE_ORPHAN_DEPTH,
+            max_orphan_depth: MAX_ORPHAN_DEPTH,
             #[cfg(feature = "fast-mining")]
             header_verify_delay: Duration::ZERO,
         }

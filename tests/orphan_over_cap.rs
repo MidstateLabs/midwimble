@@ -467,8 +467,9 @@ async fn a_mining_node_builds_past_the_run_unless_told_not_to() {
 /// the same: it asks for headers from below the shorter of the two tips, so
 /// its peer has them, and it strikes nobody. (Older nodes asked from below
 /// their own tip, past the peer's, got no headers, and struck the peer,
-/// then banned it.) By default a node replaces only the latest
-/// `COMPATIBLE_ORPHAN_DEPTH` blocks of a run, which such nodes can follow.
+/// then banned it.) By default a node replaces up to `MAX_ORPHAN_DEPTH`
+/// blocks of a run; `--max-orphan-depth` set to `COMPATIBLE_ORPHAN_DEPTH`
+/// keeps the old limit, which such nodes can follow.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_node_follows_a_heavier_but_shorter_chain() {
     let mut bonds = bonds(&[b"short big", b"short small"]);
@@ -482,8 +483,20 @@ async fn a_node_follows_a_heavier_but_shorter_chain() {
         chain.extend(&big);
     }
 
-    // By default, a node replaces the latest blocks of the run only.
-    let capped = start(chain.store(), Some(small.clone()), vec![], true).await;
+    // By default, a node replaces the whole run (it is shorter than
+    // MAX_ORPHAN_DEPTH).
+    let deep = start(chain.store(), Some(small.clone()), vec![], true).await;
+    wait_until("the base to be derived", 30, || {
+        deep.handle.info().orphan_base.is_some()
+    })
+    .await;
+    assert_eq!(deep.get("/state").await["orphaning"]["replaces"], run);
+
+    // The old default still caps a node at COMPATIBLE_ORPHAN_DEPTH.
+    let capped = start_with(chain.store(), Some(small.clone()), vec![], |config| {
+        config.max_orphan_depth = COMPATIBLE_ORPHAN_DEPTH
+    })
+    .await;
     wait_until("the base to be derived", 30, || {
         capped.handle.info().orphan_base.is_some()
     })
@@ -494,17 +507,6 @@ async fn a_node_follows_a_heavier_but_shorter_chain() {
         state["orphaning"]["height"],
         chain.state.height - COMPATIBLE_ORPHAN_DEPTH
     );
-
-    // Allowed to, a node builds past the whole run.
-    let deep = start_with(chain.store(), Some(small.clone()), vec![], |config| {
-        config.max_orphan_depth = MAX_ORPHAN_DEPTH
-    })
-    .await;
-    wait_until("the base to be derived", 30, || {
-        deep.handle.info().orphan_base.is_some()
-    })
-    .await;
-    assert_eq!(deep.get("/state").await["orphaning"]["replaces"], run);
 
     // A node whose chain replaced the run: heavier, and shorter by all but
     // two of the run's blocks. (Two full-weight blocks, because this build's

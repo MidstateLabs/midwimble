@@ -320,7 +320,7 @@ async fn bonds(AxState(node): AxState<NodeHandle>) -> Json<Value> {
     use crate::core::bond::{
         min_mining_bond, min_remaining_bond_lock, registration_min_bond,
         work_doublings_since_genesis, BONDED_MINING_FROM, BOND_RETARGET_FROM, EARLY_BONDS_UNTIL,
-        MAX_MINING_BOND, WORK_DOUBLINGS_PER_BOND_DOUBLING,
+        MAX_MINING_BOND, OVER_CAP_INVALID_FROM, WORK_DOUBLINGS_PER_BOND_DOUBLING,
     };
     let from = BONDED_MINING_FROM;
     Json(json!({
@@ -332,6 +332,11 @@ async fn bonds(AxState(node): AxState<NodeHandle>) -> Json<Value> {
         "min_bond_now": min_mining_bond(now),
         "min_remaining_lock_now": min_remaining_bond_lock(now),
         "early_bonds_until": if EARLY_BONDS_UNTIL == 0 { Value::Null } else { json!(EARLY_BONDS_UNTIL) },
+        // From this height a block over its bond's cap is invalid rather
+        // than tapered (`bond::check_signer_cap`); `over_cap_invalid` says
+        // whether the next block is past it.
+        "over_cap_invalid_from": OVER_CAP_INVALID_FROM,
+        "over_cap_invalid": crate::core::bond::over_cap_invalid_at(state.height),
         // What a *new* registration must lock at this chain's difficulty:
         // the figure to check before locking a coin on midstate.
         "registration_min_bond": registration_min_bond(&state.target, now),

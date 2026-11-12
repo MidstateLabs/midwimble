@@ -66,7 +66,7 @@ recovery design.
 - **Halvings:** 0.23932616 per block in era 0, halving every 2,100,000 blocks,
   the same wall-clock era as Bitcoin's. ASERT's genesis anchoring keeps the
   halving dates predictable to within a day or two.
-- **Over-cap taper:** from the mainnet switch, a bond that has signed `n` of
+- **Over-cap taper:** from the mainnet switch until height 50,000, a bond that has signed `n` of
   the last 1,440 blocks against a cap of `cap` mints only `reward x cap / n`
   of a block's subsidy, rounded down; fees are always paid in full. What the
   taper withholds is never minted by anyone -- it is a burn, not a
@@ -74,12 +74,18 @@ recovery design.
   enough bonds, and the capital locked grows with the hashrate it covers. It
   is the same `n > cap` test that already drops an over-cap block's
   fork-choice weight to 1/1024 of its work, so pay and weight agree.
-- **Over-cap blocks are orphaned:** one block that counts in full outweighs
-  up to 1,023 over-cap ones, so while the tip is a run of other producers'
+- **Over-cap blocks invalid from height 50,000:** from that height a block
+  whose bond has signed more than its cap of the last 1,440 blocks is
+  rejected, not tapered; below it, the taper above and the orphaning below
+  apply as before. A hard fork: run a release that carries it before the chain gets
+  there (`docs/OVER_CAP_INVALID.md`).
+- **Over-cap blocks are orphaned** (below height 50,000): one block that
+  counts in full outweighs up to 1,023 over-cap ones, so while the tip is a run of other producers'
   over-cap blocks, nodes build on the block before the run, and a block there
-  replaces it all, pay and fees included (at most 12 blocks back by default,
-  which nodes from before the sync fix can follow, and up to 100 with
-  `--max-orphan-depth`; `--no-orphan-over-cap` keeps a node on the tip).
+  replaces it all, pay and fees included (at most 100 blocks back by default
+  (`--max-orphan-depth`, the maximum), or 12 with `--max-orphan-depth 12`
+  for nodes from before the sync fix; `--no-orphan-over-cap` keeps a node
+  on the tip).
   Past its bonds' share, a
   producer's blocks are replaced, not just tapered: see
   `docs/BONDED_POW.md`.

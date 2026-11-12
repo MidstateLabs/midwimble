@@ -570,6 +570,23 @@ pub fn build_template_relayed(
         timestamp,
     );
 
+    // From OVER_CAP_INVALID_FROM a block over its bond's cap is invalid
+    // (`bond::check_signer_cap`, the same check `state::apply_batch` makes),
+    // so a producer refuses to build one rather than spend work on a block
+    // every upgraded node rejects. The signer is whichever of the producer's
+    // bonds has signed fewest of the window (`MinerBond::signer_for`), so if
+    // it is over its cap every one of them is: the producer can mine again
+    // once the window moves on past enough of its blocks, or once it has
+    // registered more bonds.
+    crate::core::bond::check_signer_cap(signer, &counts, &bonds_after, height, timestamp)
+        .map_err(|e| {
+            anyhow!(
+                "{e:#}. Every bond this producer can sign with is at its cap: it can mine again \
+                 once other producers' blocks have moved the window on, or with more bonds \
+                 registered"
+            )
+        })?;
+
     // What this block may mint, by the rule `state::apply_batch` will judge
     // it against: `credit_in_window` has just counted this block, so
     // `counts[signer]` is `n`. Past the cap the subsidy tapers and the

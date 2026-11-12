@@ -98,10 +98,12 @@ enum Cmd {
         #[arg(long)]
         no_orphan_over_cap: bool,
         /// The most over-cap blocks one of this node's blocks replaces (of a
-        /// longer run, the latest this many), up to 100. The default, 12, is
-        /// what nodes from before the sync fix for heavier but shorter chains
-        /// can follow: replacing more makes them strike, then ban, this node.
-        #[arg(long, default_value_t = midwimble::core::orphan::COMPATIBLE_ORPHAN_DEPTH,
+        /// longer run, the latest this many), up to 100. The default is 100,
+        /// the maximum: every node should already be on a release with the
+        /// sync fix for heavier but shorter chains (v1.2.2-DIMEBAG or later).
+        /// `--max-orphan-depth 12` is the old default, which nodes from
+        /// before that fix can follow.
+        #[arg(long, default_value_t = midwimble::core::orphan::MAX_ORPHAN_DEPTH,
               value_parser = clap::value_parser!(u64).range(1..=midwimble::core::orphan::MAX_ORPHAN_DEPTH))]
         max_orphan_depth: u64,
         /// Mining backend: auto, gpu or cpu (gpu needs a build with `--features gpu`).
@@ -1000,6 +1002,7 @@ fn print_params() {
     use midwimble::core::bond::{
         BONDED_MINING_FROM, BOND_RETARGET_FROM, EARLY_BONDS_UNTIL, EARLY_MIN_MINING_BOND,
         EARLY_MIN_REMAINING_BOND_LOCK, MAX_MINING_BOND, MIN_MINING_BOND, MIN_REMAINING_BOND_LOCK,
+        OVER_CAP_INVALID_FROM,
     };
     use midwimble::core::state::calculate_work;
     use midwimble::core::types::{
@@ -1075,6 +1078,10 @@ fn print_params() {
             EARLY_MIN_REMAINING_BOND_LOCK / 1440
         );
     }
+    out!(
+        "over-cap blocks      tapered and weighed as a sliver below height \
+         {OVER_CAP_INVALID_FROM}; invalid from it (docs/OVER_CAP_INVALID.md)"
+    );
     out!(
         "bond retarget        from {} ({BOND_RETARGET_FROM}) a *new* bond doubles every {} \
          doublings of midwimble's work since genesis, {} to {}; bonds already registered keep \

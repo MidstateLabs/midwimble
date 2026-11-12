@@ -1314,10 +1314,12 @@ pub fn bond_proof_from_json(coin: BondCoin, v: &serde_json::Value) -> Result<Bon
 // --- Fork-choice cap (co-bonded mining) -------------------------------------
 
 /// Over any `CAP_WINDOW` blocks, one bond adds full work to fork choice for at
-/// most `signer_cap` of them. Blocks beyond that stay valid and pay, but add
-/// only `1 / OVER_CAP_WORK_DIVISOR` of their work, so a chain outweighs another
+/// most `signer_cap` of them. Below [`OVER_CAP_INVALID_FROM`], blocks beyond
+/// that stay valid and pay (tapered, [`capped_subsidy`]), but add only
+/// `1 / OVER_CAP_WORK_DIVISOR` of their work, so a chain outweighs another
 /// only with enough bonds behind its hashrate: a pool's capacity scales with
-/// the bonds co-signed to its mining key.
+/// the bonds co-signed to its mining key. From [`OVER_CAP_INVALID_FROM`] such
+/// a block is invalid ([`check_signer_cap`]).
 #[cfg(not(feature = "fast-mining"))]
 pub const CAP_WINDOW: usize = 24 * 60;
 /// Test and devnet builds use a small window, so the cap is reachable.
@@ -1335,6 +1337,57 @@ pub const CAP_K: usize = 360;
 #[cfg(feature = "fast-mining")]
 pub const CAP_K: usize = 4;
 pub const OVER_CAP_WORK_DIVISOR: u128 = 1024;
+
+/// First height at which an over-cap block is **invalid**: a signed block
+/// whose bond has signed `n > signer_cap` of the last [`CAP_WINDOW`] blocks,
+/// this one included -- the same test that, below this height, tapers its
+/// subsidy ([`capped_subsidy`]) and drops its work to a [`sliver`]
+/// ([`credit_in_window`]). See `docs/OVER_CAP_INVALID.md`.
+///
+/// Below this height nothing changes: an over-cap block is valid, mints the
+/// tapered subsidy and adds a sliver of work, and every such block already on
+/// the chain stays valid for good. From it, consensus rejects the block
+/// outright ([`check_signer_cap`], called from `state::apply_batch`), a
+/// producer's template refuses to build one (`template::build_template_*`),
+/// and headers-first sync no longer accepts a signed header claiming the
+/// sliver ([`credit_possible`]).
+///
+/// This is a hard fork. Every node, pool and merge miner has to run a release
+/// that carries the height before the chain reaches it, and the height has to
+/// be announced far enough ahead for producers to register the bonds their
+/// hashrate needs (about `360 × s` bonds for a share `s`): a node on the old
+/// rules keeps following over-cap blocks this rule rejects, and splits off
+/// the moment one is mined at or above the height.
+///
+/// Mainnet activates at height 50,000: about five and a half days of 60 s
+/// blocks past the chain's height of about 41,800 on 2026-11-12 UTC, so
+/// there is time to announce it, ship the release and register bonds first.
+/// Moving it is itself a consensus change, and it must never be moved to a
+/// height the chain has already reached; the assertion below refuses a
+/// mainnet height at or below [`OVER_CAP_INVALID_NOT_BEFORE`].
+#[cfg(not(feature = "fast-mining"))]
+pub const OVER_CAP_INVALID_FROM: u64 = 50_000;
+/// Test and devnet builds activate it after eight signer windows (height
+/// 128): high enough that the chains the existing tests build, which run
+/// bonds past their caps within the first few dozen blocks, stay on the old
+/// rule, and low enough for a test to mine across the boundary.
+#[cfg(feature = "fast-mining")]
+pub const OVER_CAP_INVALID_FROM: u64 = 8 * CAP_WINDOW as u64;
+
+/// The lowest mainnet [`OVER_CAP_INVALID_FROM`] a build will accept: a
+/// guard against scheduling the fork at a height the chain has already
+/// passed, or too soon to announce. The chain was at about height 41,850 on
+/// 2026-11-12 UTC; this is two days of blocks past that.
+#[cfg(not(feature = "fast-mining"))]
+pub const OVER_CAP_INVALID_NOT_BEFORE: u64 = 41_850 + 2 * 24 * 60;
+#[cfg(not(feature = "fast-mining"))]
+const _: () = assert!(
+    OVER_CAP_INVALID_FROM >= OVER_CAP_INVALID_NOT_BEFORE,
+    "OVER_CAP_INVALID_FROM must be a future height, announced in advance"
+);
+/// The window and the taper are what the rule is defined on, so it can only
+/// start once a window of blocks exists below it; never at genesis.
+const _: () = assert!(OVER_CAP_INVALID_FROM > CAP_WINDOW as u64);
 /// Fork choice credits a block with at most a quarter more than the lowest
 /// work among its chain's previous `WORK_CAP_WINDOW` blocks (`cap_work`).
 ///
@@ -1425,6 +1478,80 @@ pub fn subsidy_for(
         }
         _ => reward,
     }
+}
+
+/// Whether an over-cap block at `height` is invalid rather than tapered:
+/// from [`OVER_CAP_INVALID_FROM`] on.
+pub fn over_cap_invalid_at(height: u64) -> bool {
+    height >= OVER_CAP_INVALID_FROM
+}
+
+/// The consensus half of [`OVER_CAP_INVALID_FROM`]: from that height, a
+/// signed block is invalid when its bond has signed more than its
+/// [`signer_cap`] of the last [`CAP_WINDOW`] blocks.
+///
+/// `counts` must be the signer window **with this block already counted**,
+/// as [`credit_in_window`] leaves it, so `counts[signer]` is `n`; `bonds` is
+/// the set as the block leaves it, registrations included, the same one the
+/// cap is taken against for the taper ([`subsidy_for`]) and the sliver. So
+/// the test is exactly the one those apply -- `n > signer_cap` -- and a block
+/// at the cap (`n == signer_cap`) is valid and counts in full, while the
+/// first past it (`n == signer_cap + 1`) is not. There is no allowance for
+/// luck: a producer that wants to mine more than its cap registers more
+/// bonds, it does not get the odd block over.
+///
+/// Unsigned blocks are untouched: whether a block may be unsigned is
+/// `BONDED_MINING_FROM`'s rule, checked before this, and an unsigned block
+/// never counts against a bond's cap. Neither the cap nor the window changes.
+///
+/// The node applying a block (`state::apply_batch`) and a producer building
+/// one (`template::build_template_*`) both call this, so they cannot disagree
+/// on what a valid block is.
+pub fn check_signer_cap(
+    signer: Option<[u8; 32]>,
+    counts: &im::HashMap<[u8; 32], u32>,
+    bonds: &BondSet,
+    height: u64,
+    block_timestamp: u64,
+) -> Result<()> {
+    check_signer_cap_from(
+        OVER_CAP_INVALID_FROM,
+        signer,
+        counts,
+        bonds,
+        height,
+        block_timestamp,
+    )
+}
+
+/// [`check_signer_cap`] with the activation height given, so tests can pin
+/// the boundary on any build.
+fn check_signer_cap_from(
+    from: u64,
+    signer: Option<[u8; 32]>,
+    counts: &im::HashMap<[u8; 32], u32>,
+    bonds: &BondSet,
+    height: u64,
+    block_timestamp: u64,
+) -> Result<()> {
+    let Some(id) = signer else {
+        return Ok(());
+    };
+    if height < from {
+        return Ok(());
+    }
+    let n = counts.get(&id).copied().unwrap_or(0) as usize;
+    let cap = signer_cap(bonds, block_timestamp);
+    if n > cap {
+        bail!(
+            "block {height} is over its bond's cap: bond {} has signed {n} of the last {} \
+             blocks, this one included, against a cap of {cap}; from height {from} an \
+             over-cap block is invalid",
+            hex::encode(id),
+            CAP_WINDOW
+        );
+    }
+    Ok(())
 }
 
 /// Whether any registered bond could sign a block timestamped
@@ -1538,14 +1665,17 @@ pub fn credit_in_window(
 
 /// Whether the block at `height` could add `credited` to its chain's weight,
 /// given `creditable`, its work as far as the work cap allows ([`cap_work`]):
-/// for a signed block, all of that or the sliver an over-cap block adds; for
-/// an unsigned one, the sliver from [`BONDED_MINING_FROM`] and all of it
-/// before ([`credit_in_window`]). Headers-first sync checks claimed chain
-/// weights with this (the work window is in the headers; the bond set is
-/// not, so which of a signed block's two is right is settled when the block
-/// is applied).
+/// for a signed block, all of that or, below [`OVER_CAP_INVALID_FROM`], the
+/// sliver an over-cap block adds (from that height an over-cap block is
+/// invalid, so a signed block can only add all of it); for an unsigned one,
+/// the sliver from [`BONDED_MINING_FROM`] and all of it before
+/// ([`credit_in_window`]). Headers-first sync checks claimed chain weights
+/// with this (the work window is in the headers; the bond set is not, so
+/// below the activation height which of a signed block's two is right is
+/// settled when the block is applied).
 pub fn credit_possible(creditable: u128, signed: bool, height: u64, credited: u128) -> bool {
     match (signed, height >= BONDED_MINING_FROM) {
+        (true, _) if over_cap_invalid_at(height) => credited == creditable,
         (true, _) => credited == creditable || credited == sliver(creditable),
         (false, true) => credited == sliver(creditable),
         (false, false) => credited == creditable,
@@ -1672,7 +1802,12 @@ mod cap_tests {
         let (bonded, before) = (BONDED_MINING_FROM, BONDED_MINING_FROM - 1);
         for h in [bonded, before] {
             assert!(credit_possible(work, true, h, work));
-            assert!(credit_possible(work, true, h, sliver));
+            // The over-cap sliver, only while over-cap blocks are valid.
+            assert_eq!(
+                credit_possible(work, true, h, sliver),
+                !over_cap_invalid_at(h),
+                "{h}"
+            );
             for other in [0, sliver - 1, sliver + 1, work - 1, work + 1] {
                 assert!(!credit_possible(work, true, h, other), "{other}");
                 assert!(!credit_possible(work, false, h, other), "{other}");
@@ -1747,6 +1882,78 @@ mod cap_tests {
         let mut id = [0u8; 32];
         id[..8].copy_from_slice(&(i as u64).to_le_bytes());
         id
+    }
+
+    /// The over-cap rule on its own, at an activation height of our choosing
+    /// so it runs on any build: below the height an over-cap block passes
+    /// (it is tapered and weighed as a sliver elsewhere); from it, `n == cap`
+    /// passes and `n == cap + 1` does not, with nothing in between. Unsigned
+    /// blocks never count against a cap.
+    #[test]
+    fn over_cap_blocks_are_invalid_from_the_activation_height() {
+        let mut bonds = BondSet::default();
+        for i in 0..3 {
+            bonds.insert(bond_id(i), eligible_bond());
+        }
+        let cap = signer_cap(&bonds, 0);
+        assert_eq!(cap, CAP_WINDOW.div_ceil(3));
+        let id = bond_id(0);
+        let with_n = |n: u32| std::iter::once((id, n)).collect::<im::HashMap<_, _>>();
+        let from = 1_000;
+        let check = |height: u64, n: u32| {
+            check_signer_cap_from(from, Some(id), &with_n(n), &bonds, height, 0)
+        };
+        for height in [0, 1, from - 1] {
+            for n in [1, cap as u32, cap as u32 + 1, CAP_WINDOW as u32] {
+                check(height, n).unwrap_or_else(|e| panic!("{height}/{n}: {e}"));
+            }
+        }
+        for height in [from, from + 1, u64::MAX] {
+            check(height, 1).unwrap();
+            check(height, cap as u32).expect("at the cap is valid");
+            for n in [cap as u32 + 1, cap as u32 + 2, CAP_WINDOW as u32] {
+                let err = check(height, n).unwrap_err().to_string();
+                assert!(err.contains("over its bond's cap"), "{height}/{n}: {err}");
+                assert!(err.contains(&format!("cap of {cap}")), "{err}");
+            }
+        }
+        // The same test the taper and the sliver apply: exactly where the
+        // rule starts rejecting, they start withholding.
+        let reward = 1_000_000;
+        assert_eq!(capped_subsidy(reward, cap, cap), reward);
+        assert!(capped_subsidy(reward, cap + 1, cap) < reward);
+        // Unsigned, at any height and whatever the window holds.
+        for height in [from - 1, from, u64::MAX] {
+            check_signer_cap_from(from, None, &with_n(u32::MAX), &bonds, height, 0).unwrap();
+        }
+        // A bond the window has never seen is at `n == 0`, under any cap.
+        check_signer_cap_from(from, Some(bond_id(9)), &with_n(99), &bonds, from, 0).unwrap();
+    }
+
+    /// The build's own activation height: the boundary falls between
+    /// `OVER_CAP_INVALID_FROM - 1` and `OVER_CAP_INVALID_FROM` (50,000 on
+    /// mainnet, 128 in fast-mining builds).
+    #[test]
+    fn the_builds_activation_height_is_the_boundary() {
+        let from = OVER_CAP_INVALID_FROM;
+        assert!(from > CAP_WINDOW as u64, "never at or near genesis");
+        assert!(!over_cap_invalid_at(from - 1));
+        assert!(over_cap_invalid_at(from));
+        let mut bonds = BondSet::default();
+        for i in 0..2 {
+            bonds.insert(bond_id(i), eligible_bond());
+        }
+        let over = signer_cap(&bonds, 0) as u32 + 1;
+        let counts: im::HashMap<_, _> = std::iter::once((bond_id(0), over)).collect();
+        let at = |h: u64| check_signer_cap(Some(bond_id(0)), &counts, &bonds, h, 0);
+        at(from - 1).expect("the last height of the old rule");
+        at(from).expect_err("the first height of the new one");
+        // Headers-first sync agrees: a signed header claiming the sliver is
+        // possible below the height and not from it.
+        let work = 1u128 << 40;
+        assert!(credit_possible(work, true, from - 1, sliver(work)));
+        assert!(!credit_possible(work, true, from, sliver(work)));
+        assert!(credit_possible(work, true, from, work));
     }
 
     #[test]

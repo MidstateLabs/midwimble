@@ -1291,3 +1291,159 @@ fn past_the_switch_a_template_pays_an_over_cap_block_less() {
     validate_block_contents(&batch, height, true, tapered, None).unwrap();
     assert!(validate_block_contents(&batch, height, true, scheduled, None).is_err());
 }
+
+// ── Over-cap blocks invalid from `bond::OVER_CAP_INVALID_FROM` ───────────────
+
+impl TestChain {
+    /// `n` for a block `id` would sign next: how many of the last
+    /// `CAP_WINDOW` blocks its bond would then have signed, that block
+    /// included (worked out the way `apply_batch` does).
+    fn next_n(&self, id: [u8; 32]) -> usize {
+        let mut recent = self.state.recent_signers.clone();
+        let mut counts = self.state.signer_counts.clone();
+        crate::core::bond::credit_in_window(
+            &mut recent,
+            &mut counts,
+            &self.state.bonds,
+            self.state.height,
+            Some(id),
+            0,
+            now(),
+        );
+        counts.get(&id).copied().unwrap_or(0) as usize
+    }
+
+    /// The work the next block can add in full, as far as the work cap
+    /// allows (`bond::cap_work`).
+    fn creditable(&self) -> u128 {
+        let mut floor = self.state.work_floor.clone();
+        let work = super::state::calculate_work(&self.state.target);
+        crate::core::bond::cap_work(&mut floor, self.state.height, work)
+    }
+
+    /// The block `bond` would sign next on a node that ignored the signer
+    /// window -- a modified miner, or one still on the old rules that does
+    /// not know where its quota stands. It claims the full weight and pay
+    /// of a block under its cap. The window is not in the state root, so
+    /// only the per-bond cap can tell this block from an honest one.
+    fn block_ignoring_the_window(&self, bond: &MinerBond, payout: &StealthAddress) -> Batch {
+        let mut blind = self.state.clone();
+        blind.recent_signers = Default::default();
+        blind.signer_counts = Default::default();
+        build_template_bonded(
+            &blind,
+            &self.timestamps,
+            &[],
+            &[(*payout, 1u64)],
+            [0u8; 32],
+            None,
+            Some(bond),
+        )
+        .unwrap()
+        .0
+        .mine_blocking()
+    }
+}
+
+/// The per-bond cap becomes a validity rule at `OVER_CAP_INVALID_FROM`
+/// (128 in this build), through `apply_batch` on a real chain:
+///
+/// - below it, an over-cap block is valid, adds a sliver of its work, and
+///   mints the tapered subsidy -- up to and including the block at `H - 1`;
+/// - at `H`, the same producer's template refuses to build, and a block
+///   built regardless is rejected as over its cap;
+/// - from `H`, a block at the cap (`n == cap`) is valid and counts in full,
+///   and the next (`n == cap + 1`) is invalid;
+/// - the chain moves on with the other producer, under its cap.
+#[test]
+fn over_cap_blocks_are_invalid_from_the_activation_height() {
+    use crate::core::bond::{capped_subsidy, signer_cap, sliver, OVER_CAP_INVALID_FROM};
+    let from = OVER_CAP_INVALID_FROM;
+    let mut chain = TestChain::new();
+    let payout = TestWallet::new().address();
+    let mut bonds = bonded_miners(
+        &chain,
+        &[(b"over greedy", locked_long()), (b"over other", locked_long())],
+    );
+    let (greedy, other) = (bonds.remove(0), bonds.remove(0));
+    chain
+        .apply(chain.make_bonded_block(&greedy, &payout).unwrap())
+        .unwrap();
+    chain
+        .apply(chain.make_bonded_block(&other, &payout).unwrap())
+        .unwrap();
+    let cap = signer_cap(&chain.state.bonds, now());
+    assert_eq!(cap, crate::core::bond::CAP_WINDOW.div_ceil(2));
+
+    // Applies a block and returns the weight it added.
+    let apply = |chain: &mut TestChain, batch: Batch| -> u128 {
+        let before = chain.state.weight();
+        chain.apply(batch).unwrap();
+        chain.state.weight() - before
+    };
+
+    // Taking turns, both stay at or under their caps, and every block
+    // counts in full.
+    while chain.state.height < from - 12 {
+        let bond = if chain.state.height % 2 == 1 { &greedy } else { &other };
+        assert!(chain.next_n(bond.bond_id) <= cap);
+        let creditable = chain.creditable();
+        let block = chain.make_bonded_block(bond, &payout).unwrap();
+        assert_eq!(apply(&mut chain, block), creditable, "under its cap");
+    }
+
+    // Below the height, `greedy` signs past its cap: valid, a sliver of
+    // work, a tapered subsidy. The last of them is at `H - 1`.
+    let mut over = 0;
+    while chain.state.height < from {
+        let (height, n) = (chain.state.height, chain.next_n(greedy.bond_id));
+        let creditable = chain.creditable();
+        let block = chain.make_bonded_block(&greedy, &payout).unwrap();
+        if n > cap {
+            over += 1;
+            let scheduled = block_reward(height);
+            let tapered = capped_subsidy(scheduled, n, cap);
+            assert!(tapered < scheduled);
+            validate_block_contents(&block, height, true, tapered, None).unwrap();
+            assert_eq!(apply(&mut chain, block), sliver(creditable), "{height}");
+        } else {
+            assert_eq!(apply(&mut chain, block), creditable, "{height}");
+        }
+    }
+    assert!(over >= 4, "a real over-cap run below the height ({over})");
+    assert_eq!(chain.state.height, from);
+    assert!(chain.next_n(greedy.bond_id) > cap, "still over its cap at H");
+
+    // At `H`: the template refuses, and a block built regardless is invalid.
+    let err = chain
+        .make_bonded_block(&greedy, &payout)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("over its bond's cap"), "{err}");
+    let ignoring = chain.block_ignoring_the_window(&greedy, &payout);
+    let err = chain.apply(ignoring).unwrap_err().to_string();
+    assert!(err.contains("over its bond's cap"), "{err}");
+    assert!(err.contains(&format!("cap of {cap}")), "{err}");
+    assert_eq!(chain.state.height, from, "nothing applied");
+
+    // The other producer carries on, at full weight, up to exactly its cap.
+    let mut at_cap = false;
+    while chain.next_n(other.bond_id) <= cap {
+        at_cap |= chain.next_n(other.bond_id) == cap;
+        let creditable = chain.creditable();
+        let block = chain.make_bonded_block(&other, &payout).unwrap();
+        assert_eq!(apply(&mut chain, block), creditable, "n <= cap counts in full");
+    }
+    assert!(at_cap, "a block at n == cap was applied");
+    assert_eq!(chain.next_n(other.bond_id), cap + 1);
+    assert!(chain.make_bonded_block(&other, &payout).is_err());
+    let ignoring = chain.block_ignoring_the_window(&other, &payout);
+    let err = chain.apply(ignoring).unwrap_err().to_string();
+    assert!(err.contains("over its bond's cap"), "n == cap + 1: {err}");
+
+    // By now the window has moved past `greedy`'s run, and it can sign again.
+    assert!(chain.next_n(greedy.bond_id) <= cap);
+    let creditable = chain.creditable();
+    let block = chain.make_bonded_block(&greedy, &payout).unwrap();
+    assert_eq!(apply(&mut chain, block), creditable);
+}

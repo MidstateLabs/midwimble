@@ -688,6 +688,18 @@ fn apply_batch_internal(
         creditable,
         batch.timestamp,
     );
+
+    // 5a-i. The per-bond cap as a validity rule. From OVER_CAP_INVALID_FROM a
+    //     signed block whose bond has now signed more than its cap of the last
+    //     CAP_WINDOW blocks (`counts[signer]`, this block included, against
+    //     the cap of the bond set as this block leaves it) is invalid, not
+    //     tapered: the same `n > signer_cap` test that, below the height,
+    //     drops its work to a sliver above and tapers its subsidy below. So
+    //     from the height a valid signed block always counts in full, and no
+    //     run of over-cap blocks can be on the chain. Checked before the
+    //     claimed weight so an over-cap block is reported as what it is.
+    super::bond::check_signer_cap(signer, &counts, &bonds, height, batch.timestamp)?;
+
     let weight = base.weight().saturating_add(credited);
     if batch.chain_weight != weight {
         bail!(
@@ -703,7 +715,9 @@ fn apply_batch_internal(
     //     tapers as `reward × cap / n`, on the same test that just dropped an
     //     over-cap block's work to a sliver, and what is withheld is burned
     //     rather than paid to anyone. Unsigned blocks, and every block stamped
-    //     before the mainnet switch, mint the full scheduled reward.
+    //     before the mainnet switch, mint the full scheduled reward. From
+    //     OVER_CAP_INVALID_FROM no valid block is over its cap (5a-i), so the
+    //     taper withholds nothing there and this is always the full reward.
     let subsidy = super::bond::subsidy_for(signer, &counts, &bonds, height, batch.timestamp);
 
     // 5b. Contents: structure, balances, proofs and signatures.
