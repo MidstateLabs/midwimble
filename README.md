@@ -1,14 +1,22 @@
 # midwimble
 
-A privacy chain built from midstate's networking and consensus plus pluribit's
+A privacy chain built from midstate's networking and consensus plus 
 MimbleWimble transactions, with receiver-only spend authority. It is
 merge-mineable with midstate, and anchored to midstate for post-quantum
 disaster recovery.
 
-**Status: devnet-quality research code. Not audited. Do not use for real value.**
+**Status:** Mainnet since 31 October 2026. Not audited.
 
-About 23k lines of Rust. See `docs/ANCHORING.md` for the anchoring and
-recovery design.
+The current release is **v1.4.0-DIMEBAG**. From height **50,000** (around
+18 November 2026 UTC), a signed block over its bond's cap is invalid.
+Miners and pools should upgrade before then; a node that only follows the
+chain need not. Notes: `docs/releases/v1.4.0-DIMEBAG.md`. `midwimble
+--version` prints the release; `midwimble params` prints the height.
+
+About 62,000 lines of Rust. The public explorer is
+[mw.cypherpunk.gold](https://mw.cypherpunk.gold/), the browser wallet
+[midwimble.xyz/wallet](https://midwimble.xyz/wallet/). See
+`docs/ANCHORING.md` for the anchoring and recovery design.
 
 ## What came from where
 
@@ -20,13 +28,13 @@ recovery design.
 | `core/gpu_mining.rs` | midstate | wgpu 30 fix and opt-in software adapters (for testing only) |
 | `core/cuda_walk.rs`, `core/cuda/walk_miner.ptx` | midstate | CUDA miner for Midstate Walk; the PTX byte for byte |
 | `network/amino.rs` | midstate | verbatim except the rendezvous label |
-| `network/*`, `core/state.rs`, `core/types.rs`, `core/filter.rs` | midstate | MW payloads, `/midwimble/*` protocol ids, no activation heights |
+| `network/*`, `core/state.rs`, `core/types.rs`, `core/filter.rs` | midstate | MW payloads, `/midwimble/*` protocol ids |
 | `sync.rs`, `node.rs`, `mempool.rs`, `storage.rs`, `miner.rs`, `pool.rs` | midstate (design) | re-implemented around the MW core |
-| `core/mw/*` | pluribit | hardened, with the ownership fix |
+| `core/mw/*` | mimblewimble | hardened, with the ownership fix |
 | `core/auxpow.rs`, `merge_mine.rs` | new | merged mining with unmodified midstate nodes |
 | `core/anchor.rs`, `core/recovery.rs`, `anchor.rs` | new | anchoring and dormant post-quantum recovery |
 | `core/snapshot.rs`, `finality.rs` | new | anchored pruning: finalized checkpoints, snapshots, checkpoint sync |
-| `wallet/`, `rpc.rs`, `bin/main.rs` | new | pluribit-style wallet, midstate-style RPC |
+| `wallet/`, `rpc.rs`, `bin/main.rs` | new | mimblewimble-style wallet, midstate-style RPC |
 
 ## Design summary
 
@@ -48,7 +56,8 @@ recovery design.
   Each header claims its chain's weight under its proof of work, so sync
   compares chains by it too. A block must be signed whenever a registered bond
   could sign it; while none can (before the first registration), an unsigned
-  block counts for 1/1,024 of its work.
+  block counts for 1/1,024 of its work. From height 50,000 a signed over-cap
+  block is invalid, so it is never weighed (`docs/OVER_CAP_INVALID.md`).
 - **State root:** covers the UTXO set, the kernel set, the chain MMR, the
   running excess sum, the total offset, the supply, the bond set and the
   midstate relay.
@@ -57,38 +66,51 @@ recovery design.
 
 - **Supply:** at most 1,000,000.00000000 coins (8 decimals). The schedule
   reaches that exactly at about block 49.7 million (~95 years), but it is a
-  ceiling rather than a promise: a block whose signer is over its per-bond cap
-  mints less than the schedule allows and the difference is burned, so the
-  chain's supply parts from the curve and its final total settles below the
-  cap (see **Over-cap taper**).
+  ceiling rather than a promise: until height 50,000, a block whose signer
+  is over its per-bond cap mints less than the schedule allows and the
+  difference is burned, so the chain's supply parts from the curve (see
+  **Over-cap taper**). From height 50,000 that burn stops: over-cap blocks
+  are invalid, every valid block mints the full subsidy, and supply follows
+  the schedule again from a total already behind by whatever was burned
+  (see **Over-cap blocks invalid from height 50,000**).
 - **Slow start:** the reward ramps linearly over the first 30 days, so the
   blocks mined while the network is small and least known are worth little.
 - **Halvings:** 0.23932616 per block in era 0, halving every 2,100,000 blocks,
   the same wall-clock era as Bitcoin's. ASERT's genesis anchoring keeps the
   halving dates predictable to within a day or two.
-- **Over-cap taper:** from the mainnet switch until height 50,000, a bond that has signed `n` of
-  the last 1,440 blocks against a cap of `cap` mints only `reward x cap / n`
-  of a block's subsidy, rounded down; fees are always paid in full. What the
-  taper withholds is never minted by anyone -- it is a burn, not a
-  redistribution -- so earning the whole reward means spreading hashrate over
-  enough bonds, and the capital locked grows with the hashrate it covers. It
-  is the same `n > cap` test that already drops an over-cap block's
+- **Over-cap taper:** from the mainnet switch until height 50,000, a bond that
+  has signed `n` of the last 1,440 blocks against a cap of `cap` mints only
+  `reward x cap / n` of a block's subsidy, rounded down; fees are always paid
+  in full. What the taper withholds is never minted by anyone -- it is a burn,
+  not a redistribution -- so earning the whole reward means spreading hashrate
+  over enough bonds, and the capital locked grows with the hashrate it covers.
+  It is the same `n > cap` test that already drops an over-cap block's
   fork-choice weight to 1/1024 of its work, so pay and weight agree.
-- **Over-cap blocks invalid from height 50,000:** from that height a block
-  whose bond has signed more than its cap of the last 1,440 blocks is
-  rejected, not tapered; below it, the taper above and the orphaning below
-  apply as before. A hard fork: run a release that carries it before the chain gets
-  there (`docs/OVER_CAP_INVALID.md`).
-- **Over-cap blocks are orphaned** (below height 50,000): one block that
-  counts in full outweighs up to 1,023 over-cap ones, so while the tip is a run of other producers'
-  over-cap blocks, nodes build on the block before the run, and a block there
-  replaces it all, pay and fees included (at most 100 blocks back by default
-  (`--max-orphan-depth`, the maximum), or 12 with `--max-orphan-depth 12`
-  for nodes from before the sync fix; `--no-orphan-over-cap` keeps a node
-  on the tip).
-  Past its bonds' share, a
-  producer's blocks are replaced, not just tapered: see
+- **Over-cap blocks invalid from height 50,000:** from that height a signed
+  block whose bond has signed more than its cap of the last 1,440 blocks
+  (`n > signer_cap`, the same test as the taper) is rejected, not tapered.
+  Below 50,000, the taper above and the sliver weight still apply. This is a
+  tightening, not a split by default: blocks this release produces are
+  valid to older nodes, which already prefer a full-weight block to a run
+  of slivers (one full-weight block outweighs 1,023 over-cap ones). Miners
+  and pools should run v1.4.0-DIMEBAG or later before height 50,000, which
+  is expected around 18 November 2026 UTC; a node that only follows the
+  chain need not, though it is still good to. After the height, difficulty
+  tracks the hashrate that can produce a valid block
+  (`docs/OVER_CAP_INVALID.md`).
+- **Over-cap blocks are orphaned** (below height 50,000, local policy): one
+  block that counts in full outweighs up to 1,023 over-cap ones, so while
+  the tip is a run of other producers' over-cap blocks, a node can build on
+  the block before the run and replace it (`--max-orphan-depth`, up to 100;
+  `--no-orphan-over-cap` keeps a node on the tip). From height 50,000 this
+  release has no valid over-cap blocks for that policy to replace. See
   `docs/BONDED_POW.md`.
+- **Bond retarget:** from 30 November 2026, 00:00 UTC, what a *new* bond
+  must lock follows midwimble's work, doubling once per four doublings of
+  work since genesis (a 16-fold rise), from 128 gMDS to at most 512 gMDS.
+  Bonds already registered keep the price they registered at.
+  `midwimble bond register` and `GET /bonds` (`registration_min_bond`)
+  report the current figure (`docs/BONDED_POW.md`).
 - **Checkable anywhere:** the schedule is defined by its running total, so any
   node can check that a supply claimed at any height is one the schedule could
   have produced -- never above it, and below it by whatever has been burned;
@@ -97,7 +119,7 @@ recovery design.
 - **After the cap:** a block pays only its fees, and a block with none carries
   no coinbase.
 
-### Transactions (pluribit, hardened)
+### Transactions (mimblewimble)
 
 - **Commitments:** Pedersen commitments on Ristretto255 with aggregated
   Bulletproofs, padded to a power of two and bound to their outputs' metadata.
@@ -175,6 +197,18 @@ recovery design.
   invalid share bans its sender's address; connections and message sizes are
   capped.
 
+### Co-bonds (`co_bonds.rs`, `docs/BONDED_POW.md`)
+
+A pool's midwimble blocks count in full only while enough bonds stand behind
+its hashrate. A node started with `--mining-bond` takes co-bonds while it
+runs: `GET /co-bonds` returns its mining key and its co-bonds, and
+`POST /co-bonds` hands one in (`{script, value, salt}`). The node takes only
+a bond on its own key whose coin is on midstate, registers it through
+`--midstate-rpc` as `midwimble bond register` would, and signs with it once
+it is ready, keeping them in `co-bonds.json` in its data directory.
+`--co-bond` files work as before. The RPC stays loopback-only; `midstate
+pool` publishes the key and takes hand-ins at `/pool/api/co-bonds`.
+
 ### Anchoring and post-quantum recovery (`docs/ANCHORING.md`)
 
 **Anchoring.** A checkpoint (height, header, state root, work, previous
@@ -231,7 +265,8 @@ Midstate anchors serve as the horizon instead.
 ### Networking (midstate)
 
 - **Transports:** TCP and QUIC (WebRTC-direct for browser wallets behind a
-  feature), with Noise and Yamux.
+  feature), with Noise and Yamux. Bootstrap addresses may use `/dns4/`; the
+  node resolves them through Cloudflare's resolvers.
 - **Discovery and reachability:** Kademlia on a private protocol id, identify,
   relay, DCUtR hole punching, AutoNAT, peer exchange, and the IPFS-DHT
   rendezvous.
@@ -280,34 +315,39 @@ Midstate anchors serve as the horizon instead.
 ```sh
 cargo build --release                                  # node, wallet, pool, merged miner, anchoring
 cargo build --release --features gpu                   # + midstate's GPU miners (wgpu, CUDA for the walk)
-cargo test --features fast-mining                      # 190 unit, 16 integration, 11 doc tests
-cargo test --lib                                       # production constants (165 tests)
-cargo test --no-default-features --features fast-mining --lib   # core only (159 tests)
+cargo test --features fast-mining --lib                # 392 passed, 1 ignored (fast-mining constants)
+cargo test --lib                                       # 332 passed, 1 ignored (production constants)
+cargo test --features fast-mining                      # those, plus the integration tests below
 ```
 
 `fast-mining` makes proof of work trivial, moves genesis to 2023, sets
 coinbase maturity to 3 and skips the slow start. Never ship a binary built with
 it. `midwimble params` prints a build's launch parameters, emission calendar and
 genesis block id; a build whose launch parameters are still placeholders says
-so there and at node startup. Release builds have
-not been compiled in this environment.
+so there and at node startup.
 
 The integration tests run real nodes on localhost:
 
 | Test | What it shows |
 |---|---|
-| `network` (15; 16 with `webrtc`) | gossip sync and a Dandelion++ payment; shallow and deep reorgs; late-joiner sync with restart; resumed sync; multi-peer download; forged-block and lying peers banned; bans that end and grow; a slow seed waited for, not banned; midstate-style foreign peers kept out; `--peer`s redialled until they are back |
+| `network` (16; 18 with `webrtc`) | gossip sync and a Dandelion++ payment; shallow and deep reorgs; late-joiner sync with restart; resumed sync; multi-peer download; forged-block and lying peers banned; bans that end and grow; a slow seed waited for, not banned; midstate-style foreign peers kept out; `--peer`s redialled until they are back |
+| `lighter_chain` (1) | a peer announcing a deeper but lighter chain is never fetched; it moves onto ours |
+| `bonded_mining` (5) | a bonded producer registers its own bond in its first block, every block is signed, a second node syncs it |
+| `orphan_over_cap` (3) | a node builds on the block before a run of over-cap blocks and replaces the run (local policy below height 50,000) |
 | `merge_mining` (1) | one search mines both chains against a midstate stand-in built from midstate's own types; merged-mining anchors recorded and verified; a second node syncs the merged-mined chain |
 | `pool` (1) | two auditing miners paid in coinbases; fee to the operator; supply audit holds |
+| `pool_merge` (1) | a pool merge-mines midwimble through `/merge/job` and `/merge/found` |
+| `co_bonds` (1) | a running producer takes a co-bond through `/co-bonds` and registers it |
 | `quantum_recovery` (3) | an attacker holding every elliptic-curve secret cannot claim anchored coins while owners can; a genuinely broken commitment binding still cannot inflate a claim; anchoring round trip with chained checkpoints and tamper detection |
 | `pruning` (3) | an anchored checkpoint finalizes, bodies are pruned and a new node bootstraps from the snapshot to the same state root; a heavier chain cannot reorganise below the floor; a wallet restores from a pruned node |
 | `cuda_walk_search` (1, `gpu`) | the CUDA walk search with stand-in GPUs: CPU, GPU and both; a pool's next share from the same job; a GPU's wrong answers discarded; cancel; no GPU falls back to the CPU; each height's proof of work goes to the right miner across 37,300 and 371,500 |
 | `cuda_walk_merge` (1, `gpu`) | merged mining across both switches: merged on the BLAKE3 chain, paused while only midwimble has switched, resumed on the (stand-in) GPUs once midstate has |
 
-**GPU.** `midwimble gpu-info` runs midstate's shader self-test. It was
-verified here on Mesa llvmpipe (software Vulkan), including chains split across
-many dispatches, via `MIDWIMBLE_GPU_ALLOW_SOFTWARE=1`. It has not been tested
-on real GPU hardware.
+**GPU.** `midwimble gpu-info` runs midstate's shader self-test. The wgpu
+path was verified on Mesa llvmpipe (software Vulkan), including chains split
+across many dispatches, via `MIDWIMBLE_GPU_ALLOW_SOFTWARE=1`. NVIDIA cards
+mine the Walk through CUDA, as below; a Quadro M6000 has run it at 819
+attempts/s since the v1.3.2-DIMEBAG PTX fix.
 
 **Midstate Walk on NVIDIA GPUs.** From block 37,300 (and for a merged-mined
 midstate parent, from midstate's 371,500), a `--features gpu` build mines the
@@ -331,8 +371,8 @@ command takes the same settings:
 
 The CPU and the GPUs never try the same nonce, and a stale job stops within
 tens of milliseconds. The BLAKE3 chain below the switches is mined as before.
-The CUDA path is tested here with CPU stand-ins for GPUs, and since v1.3.1's
-PTX fix it has mined on a Quadro M6000 at 819 attempts/s.
+The CUDA path is also tested with CPU stand-ins for GPUs. v1.3.1-DIMEBAG's
+PTX computed every walk wrong; the fix is in v1.3.2-DIMEBAG.
 
 A Walk step waits on its load from the pad, so a CPU thread can step several
 walks of other nonces in turn and fill those waits, as long as their pads
@@ -346,20 +386,23 @@ Each hash is exactly its nonce's walk (`core/walk.rs`, midstate's, whole).
 ## Usage
 
 ```sh
+midwimble --version                               # 1.4.0-DIMEBAG
+midwimble params                                  # launch parameters, emission, activation height
 export MIDWIMBLE_PASSWORD=...
 midwimble wallet --wallet w.mww create            # prints a v1 address + 24 words (recovery key: ~seconds to a minute)
 midwimble wallet --wallet w.mww phrase            # prints the 24 words again
-midwimble node --data-dir ./node --mine-to <address> [--backend gpu] [--prune]
+midwimble node --data-dir ./node \
+    --peer /dns4/rpc.cypherpunk.gold/tcp/9433/p2p/12D3KooWCvjd2SBokjWMH712NXNFWHKr7kJAeBsUQ447LHk7wrzu \
+    --mine-to <address> [--backend gpu] [--prune]
 midwimble node --data-dir ./node --checkpoint <checkpoint id>   # checkpoint verification
 midwimble wallet --wallet w.mww balance           # incoming: payments to it still waiting for a block
 midwimble wallet --wallet w.mww sync              # what changed: payments received and confirmed, reorgs
 midwimble wallet --wallet w.mww send --to <address> --amount 0.25   # amounts in coins
 midwimble wallet --wallet w.mww cancel --tx <hash>                  # release a payment that will never confirm
-midwimble wallet --wallet w.mww rescan [--from <height>]            # scan again; starts over on a relaunched network
+midwimble wallet --wallet w.mww rescan [--from <height>]            # scan again from a height
 midwimble bond new --file bond.json              # mining requires a bond: docs/BONDED_POW.md
-midwimble node --mining-bond bond.json --mine-to <address>
-python3 scripts/rehearse.py --midstate-rpc 127.0.0.1:8545   # full rehearsal: docs/REHEARSAL.md
-python3 scripts/join_testnet.py [--mine]                    # join the network (mainnet from 31 Oct): docs/TESTNET.md
+midwimble node --mining-bond bond.json --mine-to <address> [--co-bond cobond.json]
+python3 scripts/join_testnet.py [--mine]                    # join mainnet: docs/TESTNET.md
 
 # merged mining against a midstate node
 midwimble merge-mine --midstate-rpc 127.0.0.1:8545 --midstate-address <hex> \
@@ -376,12 +419,14 @@ midwimble anchor --midstate-rpc 127.0.0.1:8545 --depth 6
 midwimble anchor-verify --depth 6
 ```
 
-**Browser wallet.** `web-wallet/` is the wallet compiled to WebAssembly, with
-a page in the explorer's style: create, restore or open a `.mww` file, send,
-receive, history. It reaches nodes built with `--features webrtc` through the
-light protocol, three at a time, follows the chain by its scan data, and
-shares the CLI's phrases, addresses and wallet file format. See
-`web-wallet/README.md` and `docs/TESTNET.md`.
+**Browser wallet.** The public wallet is at
+[midwimble.xyz/wallet](https://midwimble.xyz/wallet/). `web-wallet/` is that
+wallet compiled to WebAssembly, with a page in the explorer's style: create,
+restore or open a `.mww` file, send, receive, history. It reaches nodes built
+with `--features webrtc` through the light protocol, three at a time, follows
+the chain by its scan data, and shares the CLI's phrases, addresses and
+wallet file format. It can use the public node at
+[mw.cypherpunk.gold](https://mw.cypherpunk.gold/). See `web-wallet/README.md`.
 
 **RPC.** The node serves these endpoints on loopback, with no authentication:
 
@@ -389,6 +434,8 @@ shares the CLI's phrases, addresses and wallet file format. See
 - `GET /blocks/{start}/{count}`
 - `GET /headers/{start}/{count}`
 - `GET /utxo/{commitment}`
+- `GET /bonds` (cap, eligibility, `over_cap_invalid_from`, `registration_min_bond`)
+- `GET /co-bonds`, `POST /co-bonds` (hand in a co-bond to a running node)
 - `GET /mempool`
 - `POST /mempool/txs` (those transactions, for wallets to see payments before a block confirms them)
 - `POST /tx`
@@ -396,15 +443,18 @@ shares the CLI's phrases, addresses and wallet file format. See
 - `POST /mining/template` (weighted payouts, `extra`, receipts; `prev_hash` and `orphans` say whether it builds past over-cap blocks)
 - `POST /mining/bind` (copies of a template with their own `extra`, re-signed, one per pool miner)
 - `POST /mining/submit`
+- `POST /merge/job`, `POST /merge/found`
 - `POST /peers`
 - `GET /utxos` (unspent outputs, for wallets on pruned nodes)
 - `GET /anchors`, `POST /anchors`
 - `GET /finality`
 
 It also serves the block explorer (`/`, `/explorer/...`) for the machine it
-runs on, including a burn tracker (`/#/burn`, `GET /explorer/burn`): what the
+runs on. A public one is at [mw.cypherpunk.gold](https://mw.cypherpunk.gold/),
+including a burn tracker (`/#/burn`, `GET /explorer/burn`): what the
 over-cap taper has withheld since the mainnet switch, in total, per day and
-per bond, checked against the chain's supply. It marks over-cap blocks, and
+per bond, checked against the chain's supply. From height 50,000 the taper
+no longer runs, so that total stops growing. It marks over-cap blocks, and
 gives each block's, kernel's and output's *full-weight confirmations*: the
 confirmations that would take bonds to undo. The RPC answers only requests
 addressed to an IP address, `localhost`, or a name given with
@@ -422,46 +472,25 @@ the same height in that directory, the new key loads the old leaves. Its tree
 then no longer matches its seed, and signatures from those leaves fail to
 verify. The vendored copy keys the file by a seed fingerprint.
 
-## Before any real launch
+## Launch and upcoming consensus
 
-- [x] Emission schedule, supply cap and decimals (`core/types.rs`).
-- [x] Run `scripts/set_launch_params.py` on launch day: network magic, a
-  Bitcoin anchor mined after the code freeze, the genesis time, and a genesis
-  target calibrated from midstate's live target (`docs/LAUNCH.md`). Done for
-  the testnet (16 October 2026), which becomes mainnet in place when its early
-  phase ends on 31 October 2026 (`docs/TESTNET.md`).
-- [ ] Get a cryptographic review of:
-  - the ownership scheme (owner sum, kernel AND-proof, transcript binding);
-  - the merged-mining proof;
-  - the recovery commitments.
-- [x] Anchor evidence: 1,000 midstate confirmations, each header worth at
-  least 2^19 attempts (`finality.rs`). Forging costs about an hour of
-  midstate's whole network, with room for its difficulty to fall eightfold.
-- [x] Finality depth: 100 midwimble blocks, fixed. It is a reorg floor, so it
-  must be identical everywhere; `core/finality.rs`'s estimator advises wallets
-  instead.
-- [x] Anchoring cadence: about every 10,000 blocks (a week). Archival nodes
-  assumed; pruning stays off (`docs/ANCHORING.md`).
-- [x] `EXTENSION_ITERATIONS` stays 1,000,000: midstate compatibility, and so
-  merged mining.
-- [ ] Midstate Walk: confirm `WALK_ACTIVATION_HEIGHT` (37,300 from
-  v1.3-DIMEBAG, expected a few hours before midstate's switch at 371,500, so
-  this chain stops taking GPU-friendly work first), `WALK_TARGET_SHIFT`, and
-  that `MIDSTATE_WALK_ACTIVATION_HEIGHT` and
-  `MIDSTATE_WALK_TARGET_SHIFT` equal midstate's release. Merged mining pauses
-  between the two switches; the merge miner and pools mine midstate alone
-  meanwhile.
-- [x] Consensus encodings pinned: block hashes cover bincode 1 encodings, so
-  bincode is pinned to `=1.3.3`, and `core/golden.rs` and the protocol tests
-  hold vectors for every hashed encoding and the wire format. Build releases
-  with `--locked`.
-- [ ] Rehearse against a real midstate node: bonded mining and merged mining
-  (`scripts/rehearse.py`, `docs/REHEARSAL.md`).
-- [ ] Run the public testnet (`docs/TESTNET.md`): publish `scripts/testnet.json`,
-  run a seed, and get a midstate pool merge-mining it.
-- [ ] Before 31 October 2026: every node on a build with the early phase,
-  mainnet bonds registered ahead of the switch, and a checkpoint anchored
-  after it (`docs/TESTNET.md`, "The switch").
+The network launched on 16 October 2026 and became mainnet on 31 October
+2026 at 00:00 UTC, in place, with the same chain and the same coins. Midstate
+Walk has been the proof of work from block 37,300, and midstate's from its
+block 371,500. Launch parameters, encodings, anchor evidence and finality
+depth are set (`docs/LAUNCH.md`, `docs/TESTNET.md`).
+
+Upcoming:
+
+- **Height 50,000** (around 18 November 2026 UTC): over-cap blocks become
+  invalid. Miners and pools should run v1.4.0-DIMEBAG or later
+  (`docs/OVER_CAP_INVALID.md`). Follower nodes need not, though it is still
+  good to.
+- **30 November 2026, 00:00 UTC:** new bond registrations follow the
+  retarget described under **Bond retarget** above.
+
+Still open: a cryptographic review of the ownership scheme, the
+merged-mining proof, and the recovery commitments.
 
 ## Known limitations
 
@@ -472,8 +501,9 @@ verify. The vendored copy keys the file by a seed fingerprint.
   (`unrecoverable_coins`); consensus cannot check them without heavy
   zero-knowledge proofs.
 - **Anchor verification is SPV-level.** Cross-check with a trusted midstate
-  node where that matters. Everything midstate-facing has been tested against
-  a stand-in built from midstate's source, not a live midstate node.
+  node where that matters. The merge-mining and anchoring tests use a
+  stand-in built from midstate's source; the live network merge-mines
+  against midstate mainnet.
 - **Pruned nodes cannot serve history.** A network needs archive nodes for
   new full-verification peers; checkpoint-synced nodes also cannot serve
   headers below their snapshot.
@@ -495,4 +525,4 @@ verify. The vendored copy keys the file by a seed fingerprint.
 
 ## Licence
 
-GPL-3.0-or-later (see `LICENSE`), matching midstate and pluribit.
+GPL-3.0-or-later (see `LICENSE`)
