@@ -205,7 +205,9 @@ no. bonds and caps only touch midwimble. midstate mining pays exactly as before.
 about `360 × your share of midwimble's hashrate`. on a laptop that rounds to one, and only if you solo mine. if you pool mine, it's zero.
 
 **"what happens if a bond goes over its cap?"**
-the blocks are still valid. they just count for almost nothing in fork choice (1/1024 of their work), and from 31 oct the reward tapers: a bond that has signed `n` of the last 1,440 blocks (a day) against a cap of `cap` mints `reward × cap / n`. fees are always paid in full. the withheld part is never minted by anyone. nothing stops and there's no cliff.
+from block 50,000 (around 18 nov): the block is invalid, so your node won't build it. your bond can sign again once its oldest blocks in the window are a day old, or once enough other blocks have pushed them out of the last 1,440. the cap is then split among the bonds that are actually signing (any block in the last 1,440), so bonds sitting idle don't shrink yours. run v1.4.1-DIMEBAG or later before then.
+
+before block 50,000: the blocks are still valid. they just count for almost nothing in fork choice (1/1024 of their work), and from 31 oct the reward tapers: a bond that has signed `n` of the last 1,440 blocks (a day) against a cap of `cap` mints `reward × cap / n`. fees are always paid in full. the withheld part is never minted by anyone. nothing stops and there's no cliff.
 
 and from v1.2.2-DIMEBAG, nodes replace them. while the tip is a run of other people's over-cap blocks, a node builds on the block before the run, and its next block that counts in full outweighs the whole run, so the run is gone, pay and fees with it. so over-cap blocks usually earn nothing at all, and the way to keep your blocks is enough bonds for your hashrate. (a node replaces at most the latest 12 blocks of a run for now, which older nodes can follow.)
 

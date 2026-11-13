@@ -533,7 +533,16 @@ pub fn build_template_relayed(
     // can sign mines only while no other bond can either. A producer with a
     // bond holds to that before then too, rather than mine unsigned blocks
     // its bond was configured to sign.
-    let signer = bond.and_then(|b| b.signer_for(&bonds_after, &state.signer_counts, timestamp));
+    // Each bond's share of the window this block will be judged by, before
+    // it joins: from OVER_CAP_INVALID_FROM, signatures a day older than this
+    // block's timestamp have left it (`bond::quota_used`).
+    let used = crate::core::bond::quota_used(
+        &state.recent_signers,
+        &state.recent_times,
+        height,
+        timestamp,
+    );
+    let signer = bond.and_then(|b| b.signer_for(&bonds_after, &used, timestamp));
     if signer.is_none()
         && (bond.is_some() || height >= BONDED_MINING_FROM)
         && crate::core::bond::any_can_sign(&bonds_after, timestamp)
@@ -559,9 +568,14 @@ pub fn build_template_relayed(
     let mut floor = state.work_floor.clone();
     let work = crate::core::state::calculate_work(&state.target);
     let creditable = crate::core::bond::cap_work(&mut floor, height, work);
-    let (mut recent, mut counts) = (state.recent_signers.clone(), state.signer_counts.clone());
+    let (mut recent, mut times, mut counts) = (
+        state.recent_signers.clone(),
+        state.recent_times.clone(),
+        state.signer_counts.clone(),
+    );
     let credited = crate::core::bond::credit_in_window(
         &mut recent,
+        &mut times,
         &mut counts,
         &bonds_after,
         height,
@@ -569,32 +583,40 @@ pub fn build_template_relayed(
         creditable,
         timestamp,
     );
+    let window = crate::core::bond::SignerWindow {
+        signers: &recent,
+        times: &times,
+        counts: &counts,
+    };
 
     // From OVER_CAP_INVALID_FROM a block over its bond's cap is invalid
     // (`bond::check_signer_cap`, the same check `state::apply_batch` makes),
     // so a producer refuses to build one rather than spend work on a block
     // every upgraded node rejects. The signer is whichever of the producer's
-    // bonds has signed fewest of the window (`MinerBond::signer_for`), so if
-    // it is over its cap every one of them is: the producer can mine again
-    // once the window moves on past enough of its blocks, or once it has
-    // registered more bonds.
-    crate::core::bond::check_signer_cap(signer, &counts, &bonds_after, height, timestamp)
-        .map_err(|e| {
+    // bonds has used least of the window (`MinerBond::signer_for`), and the
+    // cap is the same whichever signs (`bond::next_signer_cap`), so if it is
+    // over its cap every one of them is: the producer can mine again once
+    // its oldest signatures in the window are a day old, or once other
+    // blocks have moved the window past them, or with more bonds registered.
+    crate::core::bond::check_signer_cap(signer, window, &bonds_after, height, timestamp).map_err(
+        |e| {
             anyhow!(
                 "{e:#}. Every bond this producer can sign with is at its cap: it can mine again \
-                 once other producers' blocks have moved the window on, or with more bonds \
-                 registered"
+                 once its oldest signatures in the window are {} seconds old or other \
+                 producers' blocks have moved the window past them, or with more bonds \
+                 registered",
+                crate::core::bond::CAP_WINDOW_SECS
             )
-        })?;
+        },
+    )?;
 
     // What this block may mint, by the rule `state::apply_batch` will judge
     // it against: `credit_in_window` has just counted this block, so
-    // `counts[signer]` is `n`. Past the cap the subsidy tapers and the
+    // `signed_in_window` is `n`. Past the cap the subsidy tapers and the
     // remainder is burned, so the coinbase paid above -- which claimed the
     // whole scheduled reward -- has to be paid again at the lower figure, or
     // the chain rejects this producer's own block.
-    let subsidy =
-        crate::core::bond::subsidy_for(signer, &counts, &bonds_after, height, timestamp);
+    let subsidy = crate::core::bond::subsidy_for(signer, window, &bonds_after, height, timestamp);
     // Re-pay the coinbase at the tapered figure. It can only ever shrink (a
     // smaller total drops payouts, never adds them), so the block cannot
     // outgrow the room the relay was chosen for: a lighter coinbase leaves

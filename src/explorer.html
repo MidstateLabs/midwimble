@@ -695,8 +695,11 @@ function signerHeatmap(r) {
       num(b.window_signed) + " / " + num(w.cap)));
   });
   return h("div", null, grid, h("div", { class: "note" },
-    "One tick per block signed. Amber is over cap: those blocks add 1/1024 of their work"
-    + (w.tapering ? " and mint cap/n." : ", and from the mainnet switch will mint cap/n.")
+    "One tick per block signed. "
+    + (w.cap_among === "in_use"
+      ? "Amber is past its cap: its next block would be invalid until its blocks are a day old or leave the window."
+      : "Amber is over cap: those blocks add 1/1024 of their work"
+        + (w.tapering ? " and mint cap/n." : ", and from the mainnet switch will mint cap/n."))
     + " Clustered ticks are a mined run; an even spread is a shared window."));
 }
 
@@ -1005,7 +1008,9 @@ function bondTable(r) {
     r.bonds.map(b => {
       const share = b.window_signed / Math.max(w.cap, 1);
       // Past its cap a bond mints cap/n of the reward; the rest is burned.
-      const over = w.tapering && b.window_signed > w.cap;
+      // From the fork height a block past the cap is invalid instead, so
+      // there is nothing to taper.
+      const over = w.tapering && w.cap_among !== "in_use" && b.window_signed > w.cap;
       const pay = over ? w.cap / b.window_signed : 1;
       return [
         link("bond", b.bond_id, short(b.bond_id, 14)),
@@ -1021,7 +1026,9 @@ function bondTable(r) {
           : h("span", { class: "dim" }, "—"),
       ];
     }), [5, 6]),
-    h("div", { class: "note" }, "Fork choice counts a bond's blocks at full weight up to its cap over the last " + num(w.size) + " blocks; past the cap they stay valid but add only 1/1024 of their work. The cap is an equal share among eligible bonds, never below 1/360. No block counts for more than a quarter above the lowest-work block of the week before it." + (w.tapering ? " Past the cap a block also mints less: a bond that signed n of the window keeps cap/n of each block's subsidy, and what is withheld is never minted by anyone." : " From the mainnet switch, an over-cap block will also mint only cap/n of its subsidy, the rest never minted \u2014 mints shows what each bond would keep.")),
+    h("div", { class: "note" }, (w.cap_among === "in_use"
+      ? "A bond may sign up to its cap of the last " + num(w.size) + " blocks, less those a day older than the block it signs; a block past its cap is invalid. The cap is an equal share among the " + num(w.in_use) + " bonds in use (the eligible bonds that signed any of the window's other blocks), never below 1/360, so an idle bond does not shrink it. No block counts for more than a quarter above the lowest-work block of the week before it."
+      : "Fork choice counts a bond's blocks at full weight up to its cap over the last " + num(w.size) + " blocks; past the cap they stay valid but add only 1/1024 of their work. The cap is an equal share among eligible bonds, never below 1/360. No block counts for more than a quarter above the lowest-work block of the week before it." + (w.tapering ? " Past the cap a block also mints less: a bond that signed n of the window keeps cap/n of each block's subsidy, and what is withheld is never minted by anyone." : " From the mainnet switch, an over-cap block will also mint only cap/n of its subsidy, the rest never minted \u2014 mints shows what each bond would keep."))),
     h("div", { class: "note" }, w.retargeting
       ? "A new bond must lock at least " + gmds(w.min_bond) + " at this chain's difficulty"
         + (w.min_bond > w.min_bond_floor
@@ -1398,7 +1405,9 @@ function burnBondTable(r) {
   draw();
   return section("By bond", "since the switch · click a column to sort", body,
     h("div", { class: "note" }, "Window share is the bond's part of the last " + num(w.filled) + " blocks; cap share is what each of the " +
-      num(w.eligible) + " eligible bonds may sign at full pay (" + num(w.cap) + " blocks). A window share above the cap share mints cap/n. " +
+      (w.cap_among === "in_use" ? num(w.in_use) + " bonds in use" : num(w.eligible) + " eligible bonds") +
+      " may sign at full pay (" + num(w.cap) + " blocks). A window share above the cap share mints cap/n" +
+      (w.cap_among === "in_use" ? " below the fork height; from it, such a block is invalid. " : ". ") +
       "% minted compares with each block's own scheduled subsidy, which ramps up over the first 43,200 blocks."));
 }
 
@@ -1408,8 +1417,12 @@ function burnExplainer(r) {
   const s = section("Why over-cap bonds burn", null,
     h("div", { class: "explain" },
       h("p", null, h("b", null, "Each bond gets an equal capped share. "),
-        "Every eligible bond may sign up to cap = ⌈1,440 ÷ eligible bonds⌉ of the last 1,440 blocks at full pay, and the share stops shrinking at 360 bonds (4 blocks a day). Now: " +
-        num(w.eligible) + " eligible bond" + (w.eligible === 1 ? "" : "s") + ", a cap of " + num(w.cap) + " blocks, " + pct(ratio(w.cap, w.size)) + " each."),
+        "Every eligible bond may sign up to cap = ⌈1,440 ÷ eligible bonds⌉ of the last 1,440 blocks at full pay, and the share stops shrinking at 360 bonds (4 blocks a day). " +
+        "From height " + num(w.aging_from) + " the share is among the bonds in use instead, the eligible bonds that signed any other block of the window, so an idle bond no longer shrinks it; and a block past its cap is invalid rather than tapered. Now: " +
+        (w.cap_among === "in_use"
+          ? num(w.in_use) + " bond" + (w.in_use === 1 ? "" : "s") + " in use of " + num(w.eligible) + " eligible"
+          : num(w.eligible) + " eligible bond" + (w.eligible === 1 ? "" : "s")) +
+        ", a cap of " + num(w.cap) + " blocks, " + pct(ratio(w.cap, w.size)) + " each."),
       h("p", null, h("b", null, "Past the cap, blocks stay valid but mint less. "),
         "A bond that has signed n blocks of the window, n above its cap, mints cap/n of each block's scheduled subsidy, rounded down. Fees are always paid in full. The rest is never minted by anyone: not redistributed, just never created, so the final supply settles below 1,000,000."),
       h("p", null, h("b", null, "Unsigned blocks are never tapered, "),

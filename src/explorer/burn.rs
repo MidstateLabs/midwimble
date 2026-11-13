@@ -21,7 +21,7 @@
 //! what a reorg replaced, and rebuilds its report only when the tip moves.
 
 use super::{internal, unix_now, ApiError, SharedIndex};
-use crate::core::bond::{signer_cap, CAP_WINDOW, EARLY_BONDS_UNTIL};
+use crate::core::bond::{next_bonds_in_use, next_signer_cap, CAP_WINDOW, EARLY_BONDS_UNTIL};
 use crate::core::types::{block_reward, issued_before, State, MAX_SUPPLY};
 use crate::node::NodeHandle;
 use crate::storage::Storage;
@@ -408,6 +408,14 @@ impl BurnIndex {
             (rank.is_none(), rank, *id)
         });
         let idle = BondTally::default();
+        // What each bond has used of the next block's window, as its cap
+        // measures it (`bond::quota_used`).
+        let used = crate::core::bond::quota_used(
+            &state.recent_signers,
+            &state.recent_times,
+            state.height,
+            now,
+        );
         let bonds: Vec<Value> = listed
             .iter()
             .map(|(id, i)| {
@@ -418,7 +426,7 @@ impl BurnIndex {
                     "bond_id": hex::encode(id),
                     "registered": entry.is_some(),
                     "eligible": entry.is_some_and(|e| e.eligible_at(now)),
-                    "window_signed": state.signer_counts.get(id).copied().unwrap_or(0),
+                    "window_signed": used.get(id).copied().unwrap_or(0),
                     "streak": b.streak,
                     "longest_streak": b.longest_streak,
                     "last_signed": (b.periods[0].blocks > 0).then_some(b.last_signed),
@@ -482,8 +490,17 @@ impl BurnIndex {
             "window": {
                 "size": CAP_WINDOW,
                 "filled": state.recent_signers.len(),
-                "cap": signer_cap(&state.bonds, now),
+                // The next block's cap, a share among the bonds `cap_among`
+                // names: as `explorer::window_json` gives it.
+                "cap": next_signer_cap(&state.recent_signers, &state.bonds, state.height, now),
+                "cap_among": if crate::core::bond::over_cap_invalid_at(state.height) {
+                    "in_use"
+                } else {
+                    "eligible"
+                },
                 "eligible": state.bonds.values().filter(|e| e.eligible_at(now)).count(),
+                "in_use": next_bonds_in_use(&state.recent_signers, &state.bonds, now),
+                "aging_from": crate::core::bond::OVER_CAP_INVALID_FROM,
             },
             "periods": periods,
             "series": {

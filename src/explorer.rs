@@ -14,7 +14,7 @@
 
 pub mod burn;
 
-use crate::core::bond::{signer_cap, CAP_WINDOW};
+use crate::core::bond::{next_bonds_in_use, next_signer_cap, CAP_WINDOW};
 use crate::core::mw::transaction::{Kernel, Output};
 use crate::core::orphan::full_weight;
 use crate::core::state::calculate_work;
@@ -605,7 +605,24 @@ pub async fn kernel(
     .await
 }
 
-fn bond_json(id: &[u8; 32], idx: &ExplorerIndex, state: &State, now: u64) -> Value {
+/// What each bond has used of the window the next block, stamped `now`, would
+/// be judged by (`bond::quota_used`): what its cap is measured against.
+fn window_used(state: &State, now: u64) -> im::HashMap<[u8; 32], u32> {
+    crate::core::bond::quota_used(
+        &state.recent_signers,
+        &state.recent_times,
+        state.height,
+        now,
+    )
+}
+
+fn bond_json(
+    id: &[u8; 32],
+    idx: &ExplorerIndex,
+    state: &State,
+    used: &im::HashMap<[u8; 32], u32>,
+    now: u64,
+) -> Value {
     let entry = state.bonds.get(id);
     let signed = idx.signed.get(id);
     json!({
@@ -617,7 +634,12 @@ fn bond_json(id: &[u8; 32], idx: &ExplorerIndex, state: &State, now: u64) -> Val
         "registered_height": idx.registered.get(id),
         "blocks_signed": signed.map_or(0, |v| v.len()),
         "last_signed": signed.and_then(|v| v.last()),
-        "window_signed": state.signer_counts.get(id).copied().unwrap_or(0),
+        // What the bond has used of the next block's window: the blocks it
+        // signed of the last CAP_WINDOW but the one that block pushes out,
+        // less, from OVER_CAP_INVALID_FROM, those stamped CAP_WINDOW_SECS or
+        // more before now. It can sign the next block while this is under
+        // the cap.
+        "window_signed": used.get(id).copied().unwrap_or(0),
         // The heights this bond signed inside the fork-choice window, so the
         // explorer can draw when it signed rather than only how often. Sparse
         // by construction: across every bond these sum to at most one entry
@@ -642,7 +664,26 @@ fn window_json(state: &State, now: u64) -> Value {
         // needs its position to place a signed height on the strip.
         "tip": state.height,
         "from": state.height.saturating_sub(CAP_WINDOW as u64 - 1),
-        "cap": signer_cap(&state.bonds, now),
+        // The cap the next block, stamped `now`, is judged against: an equal
+        // share of the window among the bonds named by `cap_among` -- every
+        // eligible bond below OVER_CAP_INVALID_FROM, from it only the bonds
+        // in use, those that signed any of the window's other blocks
+        // (`bond::next_signer_cap`).
+        "cap": next_signer_cap(&state.recent_signers, &state.bonds, state.height, now),
+        "cap_among": if crate::core::bond::over_cap_invalid_at(state.height) {
+            "in_use"
+        } else {
+            "eligible"
+        },
+        "eligible": state.bonds.values().filter(|e| e.eligible_at(now)).count(),
+        "in_use": next_bonds_in_use(&state.recent_signers, &state.bonds, now),
+        // From `aging_from` a signature also leaves the window once its block
+        // is `age_secs` older than the block being judged
+        // (`bond::signed_in_window`); `aging` says whether the next block is
+        // past that height.
+        "aging_from": crate::core::bond::OVER_CAP_INVALID_FROM,
+        "aging": crate::core::bond::over_cap_invalid_at(state.height),
+        "age_secs": crate::core::bond::CAP_WINDOW_SECS,
         // From the mainnet switch a bond past its cap mints `cap / n` of the
         // reward and the rest is burned (`bond::capped_subsidy`). Before it,
         // an over-cap block still pays in full, so the explorer must not
@@ -668,10 +709,11 @@ pub async fn bonds(
     with_index(node, index, move |idx, node| {
         let state = node.state();
         let now = unix_now();
+        let used = window_used(&state, now);
         let mut list: Vec<Value> = state
             .bonds
             .keys()
-            .map(|id| bond_json(id, idx, &state, now))
+            .map(|id| bond_json(id, idx, &state, &used, now))
             .collect();
         list.sort_by_key(|b| std::cmp::Reverse(b["window_signed"].as_u64().unwrap_or(0)));
         Ok(Json(
@@ -696,7 +738,8 @@ pub async fn bond(
             return Err(not_found("bond"));
         }
         let now = unix_now();
-        let mut v = bond_json(&id, idx, &state, now);
+        let used = window_used(&state, now);
+        let mut v = bond_json(&id, idx, &state, &used, now);
         v["window"] = window_json(&state, now);
         v["recent_blocks"] = json!(idx
             .signed

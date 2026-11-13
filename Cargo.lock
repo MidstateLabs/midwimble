@@ -2717,7 +2717,7 @@ dependencies = [
 
 [[package]]
 name = "midwimble"
-version = "1.4.0-DIMEBAG"
+version = "1.4.1-DIMEBAG"
 dependencies = [
  "anyhow",
  "argon2",

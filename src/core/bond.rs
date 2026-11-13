@@ -1053,7 +1053,10 @@ impl std::fmt::Debug for MinerBond {
 impl MinerBond {
     /// The bond to sign the next block with: of this producer's own bond and
     /// its co-bonds, the registered, eligible one with the most fork-choice
-    /// quota left (`signer_cap`), the producer's own on ties.
+    /// quota left, the producer's own on ties. `counts` is what each bond has
+    /// used of the next block's window ([`quota_used`]); the cap that is
+    /// measured against is the same whichever bond signs
+    /// ([`next_signer_cap`]), so the least used has the most left.
     pub fn choose_signer(
         &self,
         bonds: &BondSet,
@@ -1314,19 +1317,20 @@ pub fn bond_proof_from_json(coin: BondCoin, v: &serde_json::Value) -> Result<Bon
 // --- Fork-choice cap (co-bonded mining) -------------------------------------
 
 /// Over any `CAP_WINDOW` blocks, one bond adds full work to fork choice for at
-/// most `signer_cap` of them. Below [`OVER_CAP_INVALID_FROM`], blocks beyond
-/// that stay valid and pay (tapered, [`capped_subsidy`]), but add only
-/// `1 / OVER_CAP_WORK_DIVISOR` of their work, so a chain outweighs another
-/// only with enough bonds behind its hashrate: a pool's capacity scales with
-/// the bonds co-signed to its mining key. From [`OVER_CAP_INVALID_FROM`] such
-/// a block is invalid ([`check_signer_cap`]).
+/// most its cap of them ([`signer_cap_in`]). Below [`OVER_CAP_INVALID_FROM`],
+/// blocks beyond that stay valid and pay (tapered, [`capped_subsidy`]), but
+/// add only `1 / OVER_CAP_WORK_DIVISOR` of their work, so a chain outweighs
+/// another only with enough bonds behind its hashrate: a pool's capacity
+/// scales with the bonds co-signed to its mining key. From
+/// [`OVER_CAP_INVALID_FROM`] such a block is invalid ([`check_signer_cap`]).
 #[cfg(not(feature = "fast-mining"))]
 pub const CAP_WINDOW: usize = 24 * 60;
 /// Test and devnet builds use a small window, so the cap is reachable.
 #[cfg(feature = "fast-mining")]
 pub const CAP_WINDOW: usize = 16;
-/// With at least this many eligible bonds, each may sign `1 / CAP_K` of the
-/// window at full weight; with fewer, they share it equally.
+/// With at least this many eligible bonds (from [`OVER_CAP_INVALID_FROM`],
+/// bonds in use: [`signer_cap_in`]), each may sign `1 / CAP_K` of the window
+/// at full weight; with fewer, they share it equally.
 ///
 /// 360 divides the window exactly: four full-weight blocks a bond a day. A
 /// pool with a share `s` of the hashrate then needs about `360 × s` bonds (108
@@ -1339,10 +1343,34 @@ pub const CAP_K: usize = 4;
 pub const OVER_CAP_WORK_DIVISOR: u128 = 1024;
 
 /// First height at which an over-cap block is **invalid**: a signed block
-/// whose bond has signed `n > signer_cap` of the last [`CAP_WINDOW`] blocks,
-/// this one included -- the same test that, below this height, tapers its
-/// subsidy ([`capped_subsidy`]) and drops its work to a [`sliver`]
-/// ([`credit_in_window`]). See `docs/OVER_CAP_INVALID.md`.
+/// whose bond has signed `n > cap` of its window, this block included -- the
+/// same test that, below this height, tapers its subsidy ([`capped_subsidy`])
+/// and drops its work to a [`sliver`] ([`credit_in_window`]). See
+/// `docs/OVER_CAP_INVALID.md`.
+///
+/// Two more changes take effect at this height, both loosenings, which keep
+/// the rule from stalling the chain. On the old cap, eligible bonds that
+/// nobody mines with lower every bond's cap without signing anything, so
+/// whenever the bonds in use cannot cover [`CAP_WINDOW`] blocks between them
+/// the window fills, no valid block can be built, and a window counted in
+/// blocks never moves again.
+///
+/// - The window ages by time: it is the last [`CAP_WINDOW`] blocks, less any
+///   stamped [`CAP_WINDOW_SECS`] (a day) or more before the block being
+///   judged ([`signed_in_window`]). A signature leaves the window a day after
+///   its block however few blocks follow, so no stall lasts more than a day.
+/// - The cap is a share among the bonds in use -- the eligible bonds that
+///   signed at least one other block of the window -- rather than among
+///   every eligible bond ([`signer_cap_in`]). Idle bonds no longer slow the
+///   chain: the bonds that mine can always cover the window between them.
+///
+/// Each needs the other. Without the aging, a bond that stops mining stays
+/// in use until its blocks leave the window, which only new blocks can make
+/// them do, while the bonds still mining may all be at their caps: the chain
+/// stops for good. Without the share among bonds in use, the chain keeps
+/// moving, but only as fast as the bonds in use can sign, below schedule for
+/// as long as idle bonds stay eligible. Below this height the window is the
+/// last [`CAP_WINDOW`] blocks and the cap [`signer_cap`], as they always were.
 ///
 /// Below this height nothing changes: an over-cap block is valid, mints the
 /// tapered subsidy and adds a sliver of work, and every such block already on
@@ -1388,6 +1416,29 @@ const _: () = assert!(
 /// The window and the taper are what the rule is defined on, so it can only
 /// start once a window of blocks exists below it; never at genesis.
 const _: () = assert!(OVER_CAP_INVALID_FROM > CAP_WINDOW as u64);
+
+/// How long a signature counts against its bond's cap from
+/// [`OVER_CAP_INVALID_FROM`], by block timestamp: the time [`CAP_WINDOW`]
+/// blocks take on schedule (a day on mainnet). A block of the window stamped
+/// this long or longer before the block being judged no longer counts.
+///
+/// The clock is the blocks' own timestamps, which every header carries, so
+/// storage, snapshots and headers-first sync rebuild the window from what
+/// they already hold. A block may be stamped at most
+/// `types::MAX_FUTURE_BLOCK_TIME` (15 minutes) past a node's clock, and must
+/// be stamped past the median of the eleven before it (about six blocks
+/// back), so by choosing its timestamps a producer shortens its own window
+/// by twenty minutes or so at most while blocks come about once a minute;
+/// and a chain mined in private cannot be stamped past the moment it is
+/// published, so it gets no more quota than the time it took. A block
+/// stamped far ahead also makes the next block's target easier by ASERT,
+/// and fork choice then credits every block for a week at most a quarter
+/// above that easy one (`cap_work`): a chain that games its timestamps
+/// cripples its own weight.
+pub const CAP_WINDOW_SECS: u64 = CAP_WINDOW as u64 * super::types::TARGET_BLOCK_TIME;
+/// A block stamped as far ahead as nodes accept cannot age out signatures
+/// made just now: the window outlasts the future limit.
+const _: () = assert!(CAP_WINDOW_SECS > super::types::MAX_FUTURE_BLOCK_TIME);
 /// Fork choice credits a block with at most a quarter more than the lowest
 /// work among its chain's previous `WORK_CAP_WINDOW` blocks (`cap_work`).
 ///
@@ -1413,16 +1464,146 @@ pub const WORK_CAP_HEADROOM: u128 = 4;
 /// forever.
 pub const MAX_BOND_HORIZON: u64 = 365 * 24 * 60;
 
-/// Full-weight blocks one bond may sign per `CAP_WINDOW`: an equal share among
-/// the bonds eligible at `block_timestamp`, never below `1 / CAP_K`. Counting
-/// registered bonds rather than recent signers keeps an attacker's private
-/// chain, where only the attacker signs, under the same cap.
+/// Full-weight blocks one bond may sign per `CAP_WINDOW` while `sharing`
+/// bonds share the window: an equal share, never below `1 / CAP_K`.
+fn cap_among(sharing: usize) -> usize {
+    CAP_WINDOW.div_ceil(sharing.clamp(1, CAP_K))
+}
+
+/// Full-weight blocks one bond may sign per `CAP_WINDOW` below
+/// [`OVER_CAP_INVALID_FROM`]: an equal share among the bonds eligible at
+/// `block_timestamp`, never below `1 / CAP_K`. Counting registered bonds
+/// rather than recent signers keeps an attacker's private chain, where only
+/// the attacker signs, under the same cap. From that height the share is
+/// among the bonds in use instead ([`signer_cap_in`]); this stays the cap of
+/// every block below it.
 pub fn signer_cap(bonds: &BondSet, block_timestamp: u64) -> usize {
     let eligible = bonds
         .values()
         .filter(|e| e.eligible_at(block_timestamp))
         .count();
-    CAP_WINDOW.div_ceil(eligible.clamp(1, CAP_K))
+    cap_among(eligible)
+}
+
+/// The bonds in use for a block signed by `signer` and stamped
+/// `block_timestamp`, with `window` its signer window with it already
+/// counted (as [`credit_in_window`] leaves it): the bonds of `bonds` eligible
+/// at that time that signed at least one *other* block of the window, one of
+/// the [`CAP_WINDOW`]` - 1` blocks before it. From [`OVER_CAP_INVALID_FROM`]
+/// the cap is an equal share of the window among these ([`signer_cap_in`]).
+///
+/// The block itself never counts, so the figure is the same whoever signs
+/// it ([`next_bonds_in_use`] works it out before the block exists), and a
+/// bond comes into use with its first block and leaves it once its last has
+/// left the window. Counted in blocks, not aged by time: on a chain mined in
+/// private, the bonds that signed the blocks it forked from stay in use, and
+/// so keep the private chain's cap down, until the private chain itself has
+/// pushed their blocks out of the window. The aging of `n`
+/// ([`signed_in_window`]) is still what keeps the chain moving: a bond that
+/// stops mining stays in use while its blocks are in the window, and only
+/// new blocks can move a window counted in blocks.
+pub fn bonds_in_use(
+    window: SignerWindow,
+    signer: Option<[u8; 32]>,
+    bonds: &BondSet,
+    block_timestamp: u64,
+) -> usize {
+    window
+        .counts
+        .iter()
+        .filter(|(id, signed)| **signed > u32::from(signer.as_ref() == Some(*id)))
+        .filter(|(id, _)| {
+            bonds
+                .get(id)
+                .is_some_and(|e| e.eligible_at(block_timestamp))
+        })
+        .count()
+}
+
+/// The cap the block at `height`, stamped `block_timestamp` and signed by
+/// `signer`, is judged against, for validity ([`check_signer_cap`]), weight
+/// ([`credit_in_window`]) and pay ([`subsidy_for`]) alike. `window` is its
+/// signer window with it already counted, as [`credit_in_window`] leaves it,
+/// and `bonds` the set as the block leaves it.
+///
+/// Below [`OVER_CAP_INVALID_FROM`] it is [`signer_cap`], a share among every
+/// eligible bond. From it, an equal share among the bonds in use
+/// ([`bonds_in_use`]), never below `1 / CAP_K`: a registered bond that signs
+/// nothing no longer lowers every other bond's cap, so the bonds in use can
+/// always cover the window between them, and the chain keeps its pace
+/// (`CAP_WINDOW` blocks a day) however many registered bonds sit idle. Only
+/// ever a loosening of [`signer_cap`]: the bonds in use are some of the
+/// eligible ones, so the cap is at least as high.
+pub fn signer_cap_in(
+    window: SignerWindow,
+    signer: Option<[u8; 32]>,
+    bonds: &BondSet,
+    height: u64,
+    block_timestamp: u64,
+) -> usize {
+    signer_cap_in_from(
+        OVER_CAP_INVALID_FROM,
+        window,
+        signer,
+        bonds,
+        height,
+        block_timestamp,
+    )
+}
+
+/// [`signer_cap_in`] with the activation height given, so tests can pin the
+/// boundary on any build.
+fn signer_cap_in_from(
+    from: u64,
+    window: SignerWindow,
+    signer: Option<[u8; 32]>,
+    bonds: &BondSet,
+    height: u64,
+    block_timestamp: u64,
+) -> usize {
+    if height < from {
+        return signer_cap(bonds, block_timestamp);
+    }
+    cap_among(bonds_in_use(window, signer, bonds, block_timestamp))
+}
+
+/// [`bonds_in_use`] for the next block, stamped `block_timestamp`, before it
+/// exists: the bonds of `bonds` eligible at that time that signed any of the
+/// last [`CAP_WINDOW`]` - 1` blocks of `signers` (the oldest leaves as the
+/// block joins). The same whoever signs the block.
+pub fn next_bonds_in_use(
+    signers: &im::Vector<Option<[u8; 32]>>,
+    bonds: &BondSet,
+    block_timestamp: u64,
+) -> usize {
+    let skip = signers.len().saturating_sub(CAP_WINDOW - 1);
+    let in_window: std::collections::HashSet<&[u8; 32]> =
+        signers.iter().skip(skip).flatten().collect();
+    in_window
+        .into_iter()
+        .filter(|id| {
+            bonds
+                .get(id)
+                .is_some_and(|e| e.eligible_at(block_timestamp))
+        })
+        .count()
+}
+
+/// The cap the next block, at `height` and stamped `block_timestamp`, will
+/// be judged against, whoever signs it ([`signer_cap_in`]), worked out from
+/// the signers of the blocks before it, with `bonds` the set the block will
+/// leave behind. The explorer and `GET /bonds` show it; a producer's
+/// template applies the same rule through [`check_signer_cap`].
+pub fn next_signer_cap(
+    signers: &im::Vector<Option<[u8; 32]>>,
+    bonds: &BondSet,
+    height: u64,
+    block_timestamp: u64,
+) -> usize {
+    if !over_cap_invalid_at(height) {
+        return signer_cap(bonds, block_timestamp);
+    }
+    cap_among(next_bonds_in_use(signers, bonds, block_timestamp))
 }
 
 /// The coinbase subsidy a signed block may mint: the whole `reward` while its
@@ -1451,21 +1632,112 @@ pub fn capped_subsidy(reward: u64, n: usize, cap: usize) -> u64 {
     ((reward as u128 * cap as u128) / n as u128) as u64
 }
 
+/// The per-bond window a block is judged by, with that block already counted,
+/// as [`credit_in_window`] leaves it: the signers of the last [`CAP_WINDOW`]
+/// blocks and their timestamps, oldest first and this block last, and how
+/// many of them each bond signed.
+#[derive(Clone, Copy, Debug)]
+pub struct SignerWindow<'a> {
+    pub signers: &'a im::Vector<Option<[u8; 32]>>,
+    pub times: &'a im::Vector<u64>,
+    pub counts: &'a im::HashMap<[u8; 32], u32>,
+}
+
+/// The latest timestamp a block may carry and no longer count in the window
+/// of a block stamped `block_timestamp`: [`CAP_WINDOW_SECS`] before it.
+fn aged_at(block_timestamp: u64) -> u64 {
+    block_timestamp.saturating_sub(CAP_WINDOW_SECS)
+}
+
+/// `n` for the block at `height`, stamped `block_timestamp` and signed by
+/// `id`: how many blocks of its window `id` signed, this block included.
+/// What the cap is tested against, for validity ([`check_signer_cap`]), for
+/// weight ([`credit_in_window`]) and for pay ([`subsidy_for`]) alike.
+///
+/// Below [`OVER_CAP_INVALID_FROM`] the window is the last [`CAP_WINDOW`]
+/// blocks. From it, those blocks less any stamped [`CAP_WINDOW_SECS`] or more
+/// before this one: a signature counts while it is both among the last
+/// [`CAP_WINDOW`] blocks and less than a day older than the block judged.
+/// Blocks of the window stamped *after* this one (the median-time rule allows
+/// it) still count. In normal running the two limits fall together, a day of
+/// blocks on schedule; the time limit binds only when blocks come slower than
+/// that, which is exactly when counting blocks alone would stall.
+pub fn signed_in_window(
+    window: SignerWindow,
+    id: &[u8; 32],
+    height: u64,
+    block_timestamp: u64,
+) -> usize {
+    signed_in_window_from(OVER_CAP_INVALID_FROM, window, id, height, block_timestamp)
+}
+
+/// [`signed_in_window`] with the activation height given, so tests can pin
+/// the boundary on any build.
+fn signed_in_window_from(
+    from: u64,
+    window: SignerWindow,
+    id: &[u8; 32],
+    height: u64,
+    block_timestamp: u64,
+) -> usize {
+    let n = window.counts.get(id).copied().unwrap_or(0) as usize;
+    if height < from {
+        return n;
+    }
+    let aged = aged_at(block_timestamp);
+    let stale = window
+        .signers
+        .iter()
+        .zip(window.times.iter())
+        .filter(|(signer, time)| signer.as_ref() == Some(id) && **time <= aged)
+        .count();
+    n.saturating_sub(stale)
+}
+
+/// What each bond has already signed of the window a block at `height`
+/// stamped `block_timestamp` would be judged by, not counting that block:
+/// the last [`CAP_WINDOW`]` - 1` blocks of `signers` and `times` (the oldest
+/// leaves as the block joins), less, from [`OVER_CAP_INVALID_FROM`], those
+/// stamped [`CAP_WINDOW_SECS`] or more before it. A bond may sign that block
+/// while its figure here is under its [`signer_cap`]. Producers choose their
+/// signer by this, and the explorer shows it.
+pub fn quota_used(
+    signers: &im::Vector<Option<[u8; 32]>>,
+    times: &im::Vector<u64>,
+    height: u64,
+    block_timestamp: u64,
+) -> im::HashMap<[u8; 32], u32> {
+    let skip = signers.len().saturating_sub(CAP_WINDOW - 1);
+    let ages = over_cap_invalid_at(height);
+    let aged = aged_at(block_timestamp);
+    let mut used = im::HashMap::new();
+    for (signer, time) in signers.iter().zip(times.iter()).skip(skip) {
+        if let Some(id) = signer {
+            if !(ages && *time <= aged) {
+                *used.entry(*id).or_insert(0) += 1;
+            }
+        }
+    }
+    used
+}
+
 /// What the block at `height` may mint, which is the whole of the taper rule
 /// in one place: the scheduled reward for an unsigned block or one stamped
 /// before the mainnet switch, and [`capped_subsidy`] of it for a signed block
 /// from the switch on.
 ///
-/// `counts` must be the signer window **with this block already counted**, as
-/// [`credit_in_window`] leaves it, so `counts[signer]` is `n`; `bonds` is the
-/// set as the block leaves it, the same one the cap was taken against. Three
-/// places have to agree on this figure exactly -- the node applying a block,
-/// storage replaying one, and a producer's template paying its own coinbase --
-/// and a disagreement is a chain split, so they all call this rather than
-/// keeping a copy of the rule.
+/// `window` must be the signer window **with this block already counted**,
+/// as [`credit_in_window`] leaves it, so [`signed_in_window`] is `n`; `bonds`
+/// is the set as the block leaves it, the same one the cap
+/// ([`signer_cap_in`]) was taken against.
+/// Three places have to agree on this figure exactly -- the node applying a
+/// block, storage replaying one, and a producer's template paying its own
+/// coinbase -- and a disagreement is a chain split, so they all call this
+/// rather than keeping a copy of the rule. From [`OVER_CAP_INVALID_FROM`] a
+/// valid block is never over its cap, so this is the whole reward there.
 pub fn subsidy_for(
     signer: Option<[u8; 32]>,
-    counts: &im::HashMap<[u8; 32], u32>,
+    window: SignerWindow,
     bonds: &BondSet,
     height: u64,
     block_timestamp: u64,
@@ -1473,8 +1745,9 @@ pub fn subsidy_for(
     let reward = super::types::block_reward(height);
     match signer {
         Some(id) if block_timestamp >= EARLY_BONDS_UNTIL => {
-            let n = counts.get(&id).copied().unwrap_or(0) as usize;
-            capped_subsidy(reward, n, signer_cap(bonds, block_timestamp))
+            let n = signed_in_window(window, &id, height, block_timestamp);
+            let cap = signer_cap_in(window, signer, bonds, height, block_timestamp);
+            capped_subsidy(reward, n, cap)
         }
         _ => reward,
     }
@@ -1487,29 +1760,31 @@ pub fn over_cap_invalid_at(height: u64) -> bool {
 }
 
 /// The consensus half of [`OVER_CAP_INVALID_FROM`]: from that height, a
-/// signed block is invalid when its bond has signed more than its
-/// [`signer_cap`] of the last [`CAP_WINDOW`] blocks.
+/// signed block is invalid when its bond has signed more than its cap
+/// ([`signer_cap_in`], a share among the bonds in use) of its window
+/// ([`signed_in_window`]): the last [`CAP_WINDOW`] blocks, less those stamped
+/// [`CAP_WINDOW_SECS`] or more before it.
 ///
-/// `counts` must be the signer window **with this block already counted**,
-/// as [`credit_in_window`] leaves it, so `counts[signer]` is `n`; `bonds` is
-/// the set as the block leaves it, registrations included, the same one the
-/// cap is taken against for the taper ([`subsidy_for`]) and the sliver. So
-/// the test is exactly the one those apply -- `n > signer_cap` -- and a block
-/// at the cap (`n == signer_cap`) is valid and counts in full, while the
-/// first past it (`n == signer_cap + 1`) is not. There is no allowance for
-/// luck: a producer that wants to mine more than its cap registers more
-/// bonds, it does not get the odd block over.
+/// `window` must be the signer window **with this block already counted**,
+/// as [`credit_in_window`] leaves it; `bonds` is the set as the block leaves
+/// it, registrations included, the same one the cap is taken against for the
+/// taper ([`subsidy_for`]) and the sliver. So the test is exactly the one
+/// those apply -- `n > cap` on the same `n` and the same cap -- and a block
+/// at the cap (`n == cap`) is valid and counts in full, while the first past
+/// it (`n == cap + 1`) is not. There is no allowance for luck: a producer
+/// that wants to mine more than its cap registers more bonds, or waits for
+/// its signatures to leave the window.
 ///
 /// Unsigned blocks are untouched: whether a block may be unsigned is
 /// `BONDED_MINING_FROM`'s rule, checked before this, and an unsigned block
-/// never counts against a bond's cap. Neither the cap nor the window changes.
+/// never counts against a bond's cap, nor puts any bond in use.
 ///
 /// The node applying a block (`state::apply_batch`) and a producer building
 /// one (`template::build_template_*`) both call this, so they cannot disagree
 /// on what a valid block is.
 pub fn check_signer_cap(
     signer: Option<[u8; 32]>,
-    counts: &im::HashMap<[u8; 32], u32>,
+    window: SignerWindow,
     bonds: &BondSet,
     height: u64,
     block_timestamp: u64,
@@ -1517,7 +1792,7 @@ pub fn check_signer_cap(
     check_signer_cap_from(
         OVER_CAP_INVALID_FROM,
         signer,
-        counts,
+        window,
         bonds,
         height,
         block_timestamp,
@@ -1529,7 +1804,7 @@ pub fn check_signer_cap(
 fn check_signer_cap_from(
     from: u64,
     signer: Option<[u8; 32]>,
-    counts: &im::HashMap<[u8; 32], u32>,
+    window: SignerWindow,
     bonds: &BondSet,
     height: u64,
     block_timestamp: u64,
@@ -1540,15 +1815,18 @@ fn check_signer_cap_from(
     if height < from {
         return Ok(());
     }
-    let n = counts.get(&id).copied().unwrap_or(0) as usize;
-    let cap = signer_cap(bonds, block_timestamp);
+    let n = signed_in_window_from(from, window, &id, height, block_timestamp);
+    let cap = signer_cap_in_from(from, window, signer, bonds, height, block_timestamp);
     if n > cap {
         bail!(
-            "block {height} is over its bond's cap: bond {} has signed {n} of the last {} \
-             blocks, this one included, against a cap of {cap}; from height {from} an \
-             over-cap block is invalid",
+            "block {height} is over its bond's cap: bond {} has signed {n} of its window (the \
+             last {} blocks, less any stamped {}s or more before this one), this one included, \
+             against a cap of {cap}, its share among the {} eligible bonds that signed the \
+             window's other blocks; from height {from} an over-cap block is invalid",
             hex::encode(id),
-            CAP_WINDOW
+            CAP_WINDOW,
+            CAP_WINDOW_SECS,
+            bonds_in_use(window, signer, bonds, block_timestamp)
         );
     }
     Ok(())
@@ -1569,10 +1847,11 @@ pub fn sliver(work: u128) -> u128 {
 
 /// Records a block in the fork-choice windows and returns the work it adds to
 /// its chain's weight: its work as far as [`cap_work`] allows, all of that
-/// while the bond has signed at most `signer_cap` of the last `CAP_WINDOW`
-/// blocks, this one included, and a sliver beyond (never zero, so a longer
-/// chain is always a heavier one). From [`BONDED_MINING_FROM`] an unsigned
-/// block adds only the sliver. `state.height` is the block's own height.
+/// while the bond has signed at most its cap ([`signer_cap_in`]) of its
+/// window, this block included ([`signed_in_window`]), and a sliver beyond
+/// (never zero, so a longer chain is always a heavier one). From
+/// [`BONDED_MINING_FROM`] an unsigned block adds only the sliver.
+/// `state.height` is the block's own height.
 pub fn credit_work(
     state: &mut super::types::State,
     signer: Option<[u8; 32]>,
@@ -1582,6 +1861,7 @@ pub fn credit_work(
     let work = cap_work(&mut state.work_floor, state.height, work);
     credit_in_window(
         &mut state.recent_signers,
+        &mut state.recent_times,
         &mut state.signer_counts,
         &state.bonds,
         state.height,
@@ -1623,10 +1903,14 @@ pub fn cap_work(floor: &mut im::Vector<(u64, u128)>, height: u64, work: u128) ->
 }
 
 /// The per-bond half of [`credit_work`], on a bare window, for the block at
-/// `height`. Storage replays blocks onto its own records and must weigh each
-/// one exactly as the node did.
+/// `height` stamped `block_timestamp`: records its signer and timestamp
+/// (`recent` and `times` stay the same length, oldest first) and returns the
+/// work it adds. Storage replays blocks onto its own records and must weigh
+/// each one exactly as the node did.
+#[allow(clippy::too_many_arguments)]
 pub fn credit_in_window(
     recent: &mut im::Vector<Option<[u8; 32]>>,
+    times: &mut im::Vector<u64>,
     counts: &mut im::HashMap<[u8; 32], u32>,
     bonds: &BondSet,
     height: u64,
@@ -1634,12 +1918,19 @@ pub fn credit_in_window(
     work: u128,
     block_timestamp: u64,
 ) -> u128 {
+    debug_assert_eq!(
+        recent.len(),
+        times.len(),
+        "the window's two halves move together"
+    );
     recent.push_back(signer);
+    times.push_back(block_timestamp);
     if let Some(id) = signer {
         let count = counts.get(&id).copied().unwrap_or(0);
         counts.insert(id, count + 1);
     }
     while recent.len() > CAP_WINDOW {
+        times.pop_front();
         if let Some(Some(old)) = recent.pop_front() {
             match counts.get(&old).copied() {
                 Some(count) if count > 1 => {
@@ -1651,10 +1942,15 @@ pub fn credit_in_window(
             }
         }
     }
+    let window = SignerWindow {
+        signers: recent,
+        times,
+        counts,
+    };
     match signer {
         Some(id)
-            if counts.get(&id).copied().unwrap_or(0) as usize
-                > signer_cap(bonds, block_timestamp) =>
+            if signed_in_window(window, &id, height, block_timestamp)
+                > signer_cap_in(window, signer, bonds, height, block_timestamp) =>
         {
             sliver(work)
         }
@@ -1682,23 +1978,26 @@ pub fn credit_possible(creditable: u128, signed: bool, height: u64, credited: u1
     }
 }
 
-/// Rebuilds the window from the signers of the blocks before `state`, oldest
-/// first (storage does this after loading or rewinding).
+/// Rebuilds the window from the signers and timestamps of the blocks before
+/// `state`, oldest first (storage does this after loading or rewinding, and
+/// snapshots after verifying: both from the headers, which carry both).
 pub fn rebuild_signer_window(
     state: &mut super::types::State,
-    signers: impl IntoIterator<Item = Option<[u8; 32]>>,
+    blocks: impl IntoIterator<Item = (Option<[u8; 32]>, u64)>,
 ) {
     state.recent_signers = im::Vector::new();
+    state.recent_times = im::Vector::new();
     state.signer_counts = im::HashMap::new();
-    for signer in signers {
+    for (signer, timestamp) in blocks {
         credit_in_window(
             &mut state.recent_signers,
+            &mut state.recent_times,
             &mut state.signer_counts,
             &state.bonds,
             0,
             signer,
             0,
-            0,
+            timestamp,
         );
     }
 }
@@ -1792,6 +2091,32 @@ mod cap_tests {
         }
     }
 
+    /// A window given only as a tally, for testing the rule on its own: it
+    /// holds no blocks, so nothing in it ages.
+    struct Tally {
+        signers: im::Vector<Option<[u8; 32]>>,
+        times: im::Vector<u64>,
+        counts: im::HashMap<[u8; 32], u32>,
+    }
+
+    impl Tally {
+        fn of(counts: im::HashMap<[u8; 32], u32>) -> Self {
+            Self {
+                signers: im::Vector::new(),
+                times: im::Vector::new(),
+                counts,
+            }
+        }
+
+        fn window(&self) -> SignerWindow<'_> {
+            SignerWindow {
+                signers: &self.signers,
+                times: &self.times,
+                counts: &self.counts,
+            }
+        }
+    }
+
     /// A signed block adds all its work or, over its cap, a sliver; an
     /// unsigned one adds all of it before bonded mining begins and only the
     /// sliver after: nothing else.
@@ -1836,8 +2161,18 @@ mod cap_tests {
             (BONDED_MINING_FROM, sliver(work)),
             (BONDED_MINING_FROM - 1, work),
         ] {
-            let (mut recent, mut counts) = (im::Vector::new(), im::HashMap::new());
-            let credited = credit_in_window(&mut recent, &mut counts, &none, height, None, work, 0);
+            let (mut recent, mut times, mut counts) =
+                (im::Vector::new(), im::Vector::new(), im::HashMap::new());
+            let credited = credit_in_window(
+                &mut recent,
+                &mut times,
+                &mut counts,
+                &none,
+                height,
+                None,
+                work,
+                0,
+            );
             assert_eq!(credited, expected, "height {height}");
             assert!(credit_possible(work, false, height, credited));
             assert_eq!(recent.back(), Some(&None), "recorded as unsigned");
@@ -1898,10 +2233,18 @@ mod cap_tests {
         let cap = signer_cap(&bonds, 0);
         assert_eq!(cap, CAP_WINDOW.div_ceil(3));
         let id = bond_id(0);
-        let with_n = |n: u32| std::iter::once((id, n)).collect::<im::HashMap<_, _>>();
+        // All three bonds in use, so the cap is the same on either side of
+        // the height: `id` has signed `n` of the window, the others one each.
+        let with_n = |n: u32| {
+            Tally::of(
+                [(id, n), (bond_id(1), 1), (bond_id(2), 1)]
+                    .into_iter()
+                    .collect(),
+            )
+        };
         let from = 1_000;
         let check = |height: u64, n: u32| {
-            check_signer_cap_from(from, Some(id), &with_n(n), &bonds, height, 0)
+            check_signer_cap_from(from, Some(id), with_n(n).window(), &bonds, height, 0)
         };
         for height in [0, 1, from - 1] {
             for n in [1, cap as u32, cap as u32 + 1, CAP_WINDOW as u32] {
@@ -1924,10 +2267,12 @@ mod cap_tests {
         assert!(capped_subsidy(reward, cap + 1, cap) < reward);
         // Unsigned, at any height and whatever the window holds.
         for height in [from - 1, from, u64::MAX] {
-            check_signer_cap_from(from, None, &with_n(u32::MAX), &bonds, height, 0).unwrap();
+            check_signer_cap_from(from, None, with_n(u32::MAX).window(), &bonds, height, 0)
+                .unwrap();
         }
         // A bond the window has never seen is at `n == 0`, under any cap.
-        check_signer_cap_from(from, Some(bond_id(9)), &with_n(99), &bonds, from, 0).unwrap();
+        check_signer_cap_from(from, Some(bond_id(9)), with_n(99).window(), &bonds, from, 0)
+            .unwrap();
     }
 
     /// The build's own activation height: the boundary falls between
@@ -1944,8 +2289,9 @@ mod cap_tests {
             bonds.insert(bond_id(i), eligible_bond());
         }
         let over = signer_cap(&bonds, 0) as u32 + 1;
-        let counts: im::HashMap<_, _> = std::iter::once((bond_id(0), over)).collect();
-        let at = |h: u64| check_signer_cap(Some(bond_id(0)), &counts, &bonds, h, 0);
+        // Both bonds in use, so the cap is the same either side.
+        let tally = Tally::of([(bond_id(0), over), (bond_id(1), 1)].into_iter().collect());
+        let at = |h: u64| check_signer_cap(Some(bond_id(0)), tally.window(), &bonds, h, 0);
         at(from - 1).expect("the last height of the old rule");
         at(from).expect_err("the first height of the new one");
         // Headers-first sync agrees: a signed header claiming the sliver is
@@ -1954,6 +2300,501 @@ mod cap_tests {
         assert!(credit_possible(work, true, from - 1, sliver(work)));
         assert!(!credit_possible(work, true, from, sliver(work)));
         assert!(credit_possible(work, true, from, work));
+    }
+
+    /// A signer window's three parts, as `credit_in_window` keeps them.
+    type Parts = (
+        im::Vector<Option<[u8; 32]>>,
+        im::Vector<u64>,
+        im::HashMap<[u8; 32], u32>,
+    );
+
+    /// A window of real blocks, `(signer, timestamp)` oldest first, pushed
+    /// through `credit_in_window` as consensus records them.
+    fn window_of(blocks: &[(Option<[u8; 32]>, u64)]) -> Parts {
+        let none = BondSet::default();
+        let (mut signers, mut times, mut counts) =
+            (im::Vector::new(), im::Vector::new(), im::HashMap::new());
+        for (signer, ts) in blocks {
+            credit_in_window(
+                &mut signers,
+                &mut times,
+                &mut counts,
+                &none,
+                0,
+                *signer,
+                0,
+                *ts,
+            );
+        }
+        (signers, times, counts)
+    }
+
+    /// From the activation height the window ages by time: a signature stops
+    /// counting once its block is stamped `CAP_WINDOW_SECS` or more before
+    /// the block judged, however few blocks have followed it. Below the
+    /// height the window is blocks alone, as it always was.
+    #[test]
+    fn from_the_height_a_signature_leaves_the_window_a_day_after_its_block() {
+        let (a, b) = (bond_id(1), bond_id(2));
+        let t0 = 1_800_000_000u64;
+        let day = CAP_WINDOW_SECS;
+        let from = 1_000;
+        // `a` signs three blocks a minute apart around one of `b`'s; then,
+        // after a silence, `a` signs the block judged, stamped `t`.
+        let n = |t: u64, height: u64, id: [u8; 32]| {
+            let (s, ti, c) = window_of(&[
+                (Some(a), t0),
+                (Some(a), t0 + 60),
+                (Some(b), t0 + 90),
+                (Some(a), t0 + 120),
+                (Some(a), t),
+            ]);
+            let window = SignerWindow {
+                signers: &s,
+                times: &ti,
+                counts: &c,
+            };
+            signed_in_window_from(from, window, &id, height, t)
+        };
+        // Below the height every block of the window counts, however old.
+        assert_eq!(n(t0 + 10 * day, from - 1, a), 4);
+        // From it: nothing has aged a second short of a day...
+        assert_eq!(n(t0 + 121, from, a), 4);
+        assert_eq!(n(t0 + day - 1, from, a), 4);
+        // ...a block stamped exactly a day before the one judged counts no
+        // more, then the next, and so on...
+        assert_eq!(n(t0 + day, from, a), 3);
+        assert_eq!(n(t0 + 60 + day - 1, from, a), 3);
+        assert_eq!(n(t0 + 60 + day, from, a), 2);
+        assert_eq!(n(t0 + 120 + day, from, a), 1);
+        // ...and the block judged always counts itself.
+        assert_eq!(n(u64::MAX, from, a), 1);
+        // Another bond's blocks age alike and never count against `a`.
+        assert_eq!(n(t0 + 89 + day, from, b), 1);
+        assert_eq!(n(t0 + 90 + day, from, b), 0);
+
+        // A block stamped after the one judged (the median-time rule allows
+        // a block to be stamped earlier than the one before it) still counts.
+        let (s, ti, c) = window_of(&[(Some(a), t0 + 500), (Some(a), t0 + 400)]);
+        let window = SignerWindow {
+            signers: &s,
+            times: &ti,
+            counts: &c,
+        };
+        assert_eq!(signed_in_window_from(from, window, &a, from, t0 + 400), 2);
+
+        // Time only ever lets a signature leave early: the window is still at
+        // most CAP_WINDOW blocks, however close together they are stamped.
+        let crowded: Vec<_> = (0..CAP_WINDOW + 5).map(|_| (Some(a), t0)).collect();
+        let (s, ti, c) = window_of(&crowded);
+        assert_eq!((s.len(), ti.len()), (CAP_WINDOW, CAP_WINDOW));
+        let window = SignerWindow {
+            signers: &s,
+            times: &ti,
+            counts: &c,
+        };
+        assert_eq!(
+            signed_in_window_from(from, window, &a, from, t0),
+            CAP_WINDOW
+        );
+    }
+
+    /// The case the aging exists for. A bond over its cap counted in blocks,
+    /// whose oldest signature in the window is a day older than the block it
+    /// signs, is under it counted in time: from the height that block is
+    /// valid, counts in full and mints the whole reward. Below the height
+    /// nothing changes: the same block is a tapered sliver.
+    #[test]
+    fn over_its_cap_in_blocks_but_not_in_time_is_valid_from_the_height() {
+        let mut bonds = BondSet::default();
+        bonds.insert(bond_id(1), eligible_bond());
+        bonds.insert(bond_id(2), eligible_bond());
+        let (a, b) = (bond_id(1), bond_id(2));
+        let cap = signer_cap(&bonds, 0);
+        let day = CAP_WINDOW_SECS;
+        let t0 = EARLY_BONDS_UNTIL.max(1_800_000_000);
+        let work = 1u128 << 40;
+        // `a` signed one block at `t0` and `cap - 1` more a day later; the
+        // block judged is its next, so it has signed `cap + 1` of the window.
+        // `b` signed one block in between, so both bonds are in use and the
+        // cap is the same on either side of the height.
+        let judged_at = t0 + day + cap as u64;
+        let history = |first: u64| -> Vec<(Option<[u8; 32]>, u64)> {
+            [(Some(a), first), (Some(b), t0 + day - 1)]
+                .into_iter()
+                .chain((0..cap as u64 - 1).map(|k| (Some(a), t0 + day + k)))
+                .collect()
+        };
+        // Weight, pay and validity of `a`'s next block at `height`, after
+        // `history`.
+        let judge = |first: u64, height: u64| {
+            let (mut s, mut ti, mut c) = window_of(&history(first));
+            let credited = credit_in_window(
+                &mut s,
+                &mut ti,
+                &mut c,
+                &bonds,
+                height,
+                Some(a),
+                work,
+                judged_at,
+            );
+            let window = SignerWindow {
+                signers: &s,
+                times: &ti,
+                counts: &c,
+            };
+            assert_eq!(c[&a] as usize, cap + 1, "over its cap counted in blocks");
+            let paid = subsidy_for(Some(a), window, &bonds, height, judged_at);
+            let valid = check_signer_cap(Some(a), window, &bonds, height, judged_at);
+            (credited, paid, valid)
+        };
+        let (h, below) = (OVER_CAP_INVALID_FROM, OVER_CAP_INVALID_FROM - 1);
+        let reward = |height| super::super::types::block_reward(height);
+
+        // The first signature is a day older than the block: it has left.
+        let (credited, paid, valid) = judge(t0, h);
+        valid.expect("at its cap counted in time");
+        assert_eq!(credited, work, "counts in full");
+        assert_eq!(paid, reward(h), "mints the whole reward");
+        // Below the height the window is blocks alone: a tapered sliver.
+        let (credited, paid, valid) = judge(t0, below);
+        valid.expect("over-cap blocks are valid below the height");
+        assert_eq!(credited, sliver(work));
+        assert_eq!(paid, capped_subsidy(reward(below), cap + 1, cap));
+
+        // A second younger, and it is still in the window: over its cap.
+        let (credited, _, valid) = judge(t0 + cap as u64 + 1, h);
+        let err = valid.unwrap_err().to_string();
+        assert!(err.contains("over its bond's cap"), "{err}");
+        assert!(err.contains(&format!("cap of {cap}")), "{err}");
+        assert_eq!(
+            credited,
+            sliver(work),
+            "an invalid block weighs as it always did"
+        );
+    }
+
+    /// `quota_used` is exactly what the next block's window holds before
+    /// that block joins it: plus one, it is `n` for whichever bond signs.
+    /// Checked on a long, irregular chain of blocks, below and from the
+    /// height, with gaps of more than a day and runs of a few seconds.
+    #[test]
+    fn quota_used_is_what_the_next_blocks_window_holds() {
+        let bonds: Vec<[u8; 32]> = (0..3).map(bond_id).collect();
+        let mut x = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x
+        };
+        let none = BondSet::default();
+        let (mut s, mut ti, mut c) = (im::Vector::new(), im::Vector::new(), im::HashMap::new());
+        let mut t = 1_800_000_000u64;
+        for i in 0..3 * CAP_WINDOW {
+            t += match next() % 10 {
+                0 => CAP_WINDOW_SECS + next() % 600,
+                1..=3 => next() % 5,
+                _ => next() % 180,
+            };
+            let height = if i % 2 == 0 {
+                OVER_CAP_INVALID_FROM
+            } else {
+                OVER_CAP_INVALID_FROM - 1
+            };
+            let used = quota_used(&s, &ti, height, t);
+            for id in &bonds {
+                let (mut s2, mut t2, mut c2) = (s.clone(), ti.clone(), c.clone());
+                credit_in_window(&mut s2, &mut t2, &mut c2, &none, height, Some(*id), 0, t);
+                let window = SignerWindow {
+                    signers: &s2,
+                    times: &t2,
+                    counts: &c2,
+                };
+                assert_eq!(
+                    signed_in_window(window, id, height, t),
+                    used.get(id).copied().unwrap_or(0) as usize + 1,
+                    "block {i}, height {height}"
+                );
+            }
+            let signer = (next() % 4 != 0).then(|| bonds[(next() % 3) as usize]);
+            credit_in_window(&mut s, &mut ti, &mut c, &none, height, signer, 0, t);
+        }
+    }
+
+    /// From the activation height the cap is an equal share among the bonds
+    /// in use: the eligible bonds that signed at least one *other* block of
+    /// the window. An idle bond, a bond that can no longer sign, an unsigned
+    /// block and the block's own first signature put nobody in use, however
+    /// the blocks are stamped; a bond leaves use once its last block has left
+    /// the window. Below the height the cap is a share among every eligible
+    /// bond, as it always was.
+    #[test]
+    fn from_the_height_the_cap_is_shared_among_the_bonds_in_use() {
+        let from = 1_000;
+        let t = 1_800_000_000u64;
+        let (a, b, idle, late) = (bond_id(1), bond_id(2), bond_id(3), bond_id(4));
+        let (expired, small) = (bond_id(5), bond_id(6));
+        let mut bonds = BondSet::default();
+        for id in [a, b, idle, late] {
+            bonds.insert(id, eligible_bond());
+        }
+        let lapsed = BondEntry {
+            bonded_until: 0,
+            ..eligible_bond()
+        };
+        let undersized = BondEntry {
+            value: min_mining_bond(t) / 2,
+            ..eligible_bond()
+        };
+        bonds.insert(expired, lapsed);
+        bonds.insert(small, undersized);
+        assert_eq!(
+            signer_cap(&bonds, t),
+            CAP_WINDOW.div_ceil(4),
+            "four eligible"
+        );
+
+        // `a` and `b` mine; `expired` and `small` signed blocks once but can
+        // no longer sign; one block is unsigned; `idle` and `late` signed none.
+        let history = [Some(a), Some(expired), Some(b), None, Some(small), Some(a)];
+        // The cap of a block `signer` signs after `history` and stamps `at`,
+        // at `height`, and how many bonds are in use for it.
+        let cap_of = |history: &[Option<[u8; 32]>], signer: Option<[u8; 32]>, at: u64, height| {
+            let blocks: Vec<_> = history
+                .iter()
+                .map(|s| (*s, t))
+                .chain(std::iter::once((signer, at)))
+                .collect();
+            let (s, ti, c) = window_of(&blocks);
+            let window = SignerWindow {
+                signers: &s,
+                times: &ti,
+                counts: &c,
+            };
+            let cap = signer_cap_in_from(from, window, signer, &bonds, height, at);
+            (cap, bonds_in_use(window, signer, &bonds, at))
+        };
+        let pair = (CAP_WINDOW.div_ceil(2), 2);
+        for signer in [Some(a), Some(b), Some(late), Some(idle), None] {
+            // Below the height: every eligible bond, used or not.
+            assert_eq!(
+                cap_of(&history, signer, t, from - 1).0,
+                signer_cap(&bonds, t)
+            );
+            // From it: `a` and `b` alone, whoever signs...
+            assert_eq!(cap_of(&history, signer, t, from), pair, "{signer:?}");
+            // ...and counted in blocks, not time: stamped ten days on, every
+            // signature in the window has aged, and the same two are in use.
+            let later = t + 10 * CAP_WINDOW_SECS;
+            assert_eq!(cap_of(&history, signer, later, from), pair, "{signer:?}");
+        }
+        // `late`'s first block does not put it in use; its second does, for
+        // whoever signs the block after its first.
+        let mut with_late = history.to_vec();
+        with_late.push(Some(late));
+        let three = (CAP_WINDOW.div_ceil(3), 3);
+        assert_eq!(cap_of(&with_late, Some(late), t, from), three);
+        assert_eq!(cap_of(&with_late, Some(a), t, from), three);
+        assert_eq!(cap_of(&with_late, None, t, from), three);
+
+        // A bond leaves use once its last block has left the window: `a`
+        // mining alone, `b`'s one block is first the oldest of the window,
+        // then gone, and a lone producer is uncapped.
+        let mut alone = history.to_vec();
+        alone.extend(std::iter::repeat_n(Some(a), CAP_WINDOW + 1 - history.len()));
+        assert_eq!(
+            cap_of(&alone, Some(a), t, from),
+            pair,
+            "b's block is the oldest"
+        );
+        alone.push(Some(a));
+        assert_eq!(
+            cap_of(&alone, Some(a), t, from),
+            (CAP_WINDOW, 1),
+            "b has left"
+        );
+
+        // Never below `1 / CAP_K` of the window, however many are in use.
+        let many: Vec<[u8; 32]> = (100..100 + (CAP_K + 10).min(CAP_WINDOW - 1))
+            .map(bond_id)
+            .collect();
+        let crowd: BondSet = many.iter().map(|id| (*id, eligible_bond())).collect();
+        let blocks: Vec<_> = many.iter().map(|id| (Some(*id), t)).collect();
+        let (s, ti, c) = window_of(&blocks);
+        let window = SignerWindow {
+            signers: &s,
+            times: &ti,
+            counts: &c,
+        };
+        let cap = signer_cap_in_from(from, window, Some(many[0]), &crowd, from, t);
+        assert!(many.len() > CAP_K, "more in use than CAP_K");
+        assert_eq!(cap, CAP_WINDOW / CAP_K);
+    }
+
+    /// The cap of the next block is the same whoever signs it, and is what
+    /// `next_signer_cap` and `next_bonds_in_use` work out before the block
+    /// exists, from the signers alone; it is never below the share among
+    /// every eligible bond. Checked on a long, irregular chain, below and
+    /// from the height, with gaps of more than a day, unsigned blocks, and
+    /// bonds that are registered but can no longer sign.
+    #[test]
+    fn the_next_blocks_cap_is_the_same_whoever_signs_it() {
+        let ids: Vec<[u8; 32]> = (0..6).map(bond_id).collect();
+        let mut bonds = BondSet::default();
+        for (i, id) in ids.iter().enumerate() {
+            let entry = match i {
+                4 => BondEntry {
+                    bonded_until: 0,
+                    ..eligible_bond()
+                },
+                _ => eligible_bond(),
+            };
+            bonds.insert(*id, entry);
+        }
+        let mut x = 0x517c_c1b7_2722_0a95u64;
+        let mut next = || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x
+        };
+        let (mut s, mut ti, mut c) = (im::Vector::new(), im::Vector::new(), im::HashMap::new());
+        let mut t = 1_800_000_000u64;
+        let mut seen = std::collections::HashSet::new();
+        for i in 0..4 * CAP_WINDOW {
+            t += match next() % 10 {
+                0 => CAP_WINDOW_SECS + next() % 600,
+                1..=3 => next() % 5,
+                _ => next() % 180,
+            };
+            let height = if i % 2 == 0 {
+                OVER_CAP_INVALID_FROM
+            } else {
+                OVER_CAP_INVALID_FROM - 1
+            };
+            let in_use = next_bonds_in_use(&s, &bonds, t);
+            let cap = next_signer_cap(&s, &bonds, height, t);
+            assert!(cap >= signer_cap(&bonds, t), "only ever a loosening");
+            seen.insert(in_use);
+            for signer in ids.iter().map(|id| Some(*id)).chain([None]) {
+                let (mut s2, mut t2, mut c2) = (s.clone(), ti.clone(), c.clone());
+                credit_in_window(&mut s2, &mut t2, &mut c2, &bonds, height, signer, 0, t);
+                let window = SignerWindow {
+                    signers: &s2,
+                    times: &t2,
+                    counts: &c2,
+                };
+                assert_eq!(
+                    bonds_in_use(window, signer, &bonds, t),
+                    in_use,
+                    "block {i}, {signer:?}"
+                );
+                assert_eq!(
+                    signer_cap_in(window, signer, &bonds, height, t),
+                    cap,
+                    "block {i}, height {height}, {signer:?}"
+                );
+            }
+            // Mostly the first three bonds; now and then the rest, so bonds
+            // come into use and leave it.
+            let signer = match next() % 12 {
+                0 => None,
+                1 => Some(ids[3 + (next() % 3) as usize]),
+                _ => Some(ids[(next() % 3) as usize]),
+            };
+            credit_in_window(&mut s, &mut ti, &mut c, &bonds, height, signer, 0, t);
+        }
+        assert!(seen.len() >= 3, "bonds came into use and left it: {seen:?}");
+    }
+
+    /// The bonds in use are counted in blocks, not by time, so a chain mined
+    /// in private cannot shed the honest bonds to raise its own cap: the
+    /// bonds that signed the blocks it forked from stay in use, however far
+    /// apart its own blocks are stamped, until it has pushed their last
+    /// blocks out of the window with blocks of its own. Until then the
+    /// attacker is held to the honest chain's cap or below; its cap rises
+    /// only after a whole window of its own blocks, which the aging lets it
+    /// sign no faster than that cap a day per bond.
+    #[test]
+    fn on_a_private_chain_the_honest_bonds_stay_in_use_for_a_window() {
+        let w = CAP_WINDOW;
+        let honest: Vec<[u8; 32]> = (0..CAP_K.min(w / 2)).map(bond_id).collect();
+        let h = honest.len();
+        let attacker = bond_id(1_000);
+        let bonds: BondSet = honest
+            .iter()
+            .chain([&attacker])
+            .map(|id| (*id, eligible_bond()))
+            .collect();
+        let height = OVER_CAP_INVALID_FROM;
+        let mut t = 1_800_000_000u64;
+        let (mut s, mut ti, mut c) = (im::Vector::new(), im::Vector::new(), im::HashMap::new());
+        // A window of honest blocks, the bonds taking turns on schedule.
+        for i in 0..w {
+            t += super::super::types::TARGET_BLOCK_TIME;
+            credit_in_window(
+                &mut s,
+                &mut ti,
+                &mut c,
+                &bonds,
+                height,
+                Some(honest[i % h]),
+                0,
+                t,
+            );
+        }
+        let honest_cap = next_signer_cap(&s, &bonds, height, t);
+        assert_eq!(honest_cap, w.div_ceil(h));
+
+        // The attacker forks here and mines alone, each block stamped ten
+        // days after the last, so every signature before it has aged.
+        for p in 0..w {
+            t += 10 * CAP_WINDOW_SECS;
+            // The window holds the last `w - 1 - p` honest blocks, which
+            // name `min(w - 1 - p, h)` honest bonds, and the attacker once it
+            // has signed one.
+            let expected = (w - 1 - p).min(h) + usize::from(p > 0);
+            assert_eq!(next_bonds_in_use(&s, &bonds, t), expected, "{p}");
+            let next_cap = next_signer_cap(&s, &bonds, height, t);
+            // The rule as consensus applies it, on the window with the
+            // attacker's block counted, timestamps and all.
+            credit_in_window(
+                &mut s,
+                &mut ti,
+                &mut c,
+                &bonds,
+                height,
+                Some(attacker),
+                0,
+                t,
+            );
+            let window = SignerWindow {
+                signers: &s,
+                times: &ti,
+                counts: &c,
+            };
+            assert_eq!(
+                bonds_in_use(window, Some(attacker), &bonds, t),
+                expected,
+                "{p}"
+            );
+            let cap = signer_cap_in(window, Some(attacker), &bonds, height, t);
+            assert_eq!(cap, next_cap);
+            if p + h < w {
+                assert!(
+                    cap <= honest_cap,
+                    "{p} private blocks: {cap} > {honest_cap}"
+                );
+            }
+        }
+        assert_eq!(
+            next_signer_cap(&s, &bonds, height, t + 1),
+            w,
+            "a window of its own blocks later, the honest bonds have left it"
+        );
     }
 
     #[test]
@@ -2011,8 +2852,8 @@ mod cap_tests {
         }
         assert_eq!(state.signer_counts[&[1; 32]] as usize, CAP_WINDOW);
         // A window rebuilt full of its blocks (a restart) still credits in full.
-        let signers = vec![Some([1u8; 32]); CAP_WINDOW];
-        rebuild_signer_window(&mut state, signers);
+        let blocks = vec![(Some([1u8; 32]), 0u64); CAP_WINDOW];
+        rebuild_signer_window(&mut state, blocks);
         assert_eq!(credit_work(&mut state, Some([1; 32]), work, 0), work);
     }
 
@@ -2064,26 +2905,27 @@ mod cap_tests {
         let height = 1;
         let full = super::super::types::block_reward(height);
 
-        let mut over = im::HashMap::new();
-        over.insert([1u8; 32], (cap + 1) as u32);
+        let over = Tally::of(std::iter::once(([1u8; 32], (cap + 1) as u32)).collect());
 
         // Stamped a second before the switch, an over-cap bond still mints
         // the lot: the rule is not live yet.
         assert_eq!(
-            subsidy_for(Some([1; 32]), &over, &bonds, height, switch - 1),
+            subsidy_for(Some([1; 32]), over.window(), &bonds, height, switch - 1),
             full
         );
         // From the switch it keeps cap/n.
-        let tapered = subsidy_for(Some([1; 32]), &over, &bonds, height, switch);
+        let tapered = subsidy_for(Some([1; 32]), over.window(), &bonds, height, switch);
         assert_eq!(tapered, capped_subsidy(full, cap + 1, cap));
         assert!(tapered < full);
         // An unsigned block is never tapered, whatever the window holds.
-        assert_eq!(subsidy_for(None, &over, &bonds, height, switch), full);
-        // Nor is a bond still inside its cap.
-        let mut inside = im::HashMap::new();
-        inside.insert([2u8; 32], cap as u32);
         assert_eq!(
-            subsidy_for(Some([2; 32]), &inside, &bonds, height, switch),
+            subsidy_for(None, over.window(), &bonds, height, switch),
+            full
+        );
+        // Nor is a bond still inside its cap.
+        let inside = Tally::of(std::iter::once(([2u8; 32], cap as u32)).collect());
+        assert_eq!(
+            subsidy_for(Some([2; 32]), inside.window(), &bonds, height, switch),
             full
         );
     }
@@ -2136,11 +2978,17 @@ mod cap_tests {
         );
 
         // Rebuilding from the same signers reproduces the window exactly.
-        let signers: Vec<_> = state.recent_signers.iter().copied().collect();
+        let blocks: Vec<_> = state
+            .recent_signers
+            .iter()
+            .copied()
+            .zip(state.recent_times.iter().copied())
+            .collect();
         let mut rebuilt = super::super::types::State::genesis();
         rebuilt.bonds = state.bonds.clone();
-        rebuild_signer_window(&mut rebuilt, signers);
+        rebuild_signer_window(&mut rebuilt, blocks);
         assert_eq!(rebuilt.recent_signers, state.recent_signers);
+        assert_eq!(rebuilt.recent_times, state.recent_times);
         assert_eq!(rebuilt.signer_counts, state.signer_counts);
     }
 

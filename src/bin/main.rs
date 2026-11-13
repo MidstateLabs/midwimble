@@ -1080,7 +1080,10 @@ fn print_params() {
     }
     out!(
         "over-cap blocks      tapered and weighed as a sliver below height \
-         {OVER_CAP_INVALID_FROM}; invalid from it (docs/OVER_CAP_INVALID.md)"
+         {OVER_CAP_INVALID_FROM}; invalid from it, where a signature also leaves the \
+         window {} seconds after its block and the cap is shared among the bonds in use \
+         (docs/OVER_CAP_INVALID.md)",
+        midwimble::core::bond::CAP_WINDOW_SECS
     );
     out!(
         "bond retarget        from {} ({BOND_RETARGET_FROM}) a *new* bond doubles every {} \

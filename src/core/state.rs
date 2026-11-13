@@ -678,9 +678,14 @@ fn apply_batch_internal(
     let work = calculate_work(&batch.target);
     let mut floor = base.work_floor.clone();
     let creditable = super::bond::cap_work(&mut floor, height, work);
-    let (mut recent, mut counts) = (base.recent_signers.clone(), base.signer_counts.clone());
+    let (mut recent, mut times, mut counts) = (
+        base.recent_signers.clone(),
+        base.recent_times.clone(),
+        base.signer_counts.clone(),
+    );
     let credited = super::bond::credit_in_window(
         &mut recent,
+        &mut times,
         &mut counts,
         &bonds,
         height,
@@ -688,17 +693,27 @@ fn apply_batch_internal(
         creditable,
         batch.timestamp,
     );
+    let window = super::bond::SignerWindow {
+        signers: &recent,
+        times: &times,
+        counts: &counts,
+    };
 
     // 5a-i. The per-bond cap as a validity rule. From OVER_CAP_INVALID_FROM a
-    //     signed block whose bond has now signed more than its cap of the last
-    //     CAP_WINDOW blocks (`counts[signer]`, this block included, against
-    //     the cap of the bond set as this block leaves it) is invalid, not
-    //     tapered: the same `n > signer_cap` test that, below the height,
-    //     drops its work to a sliver above and tapers its subsidy below. So
-    //     from the height a valid signed block always counts in full, and no
-    //     run of over-cap blocks can be on the chain. Checked before the
-    //     claimed weight so an over-cap block is reported as what it is.
-    super::bond::check_signer_cap(signer, &counts, &bonds, height, batch.timestamp)?;
+    //     signed block whose bond has now signed more than its cap of its
+    //     window (`bond::signed_in_window`: the last CAP_WINDOW blocks, this
+    //     one included, less any stamped CAP_WINDOW_SECS or more before it)
+    //     is invalid, not tapered: the same `n > cap` test that, below the
+    //     height, drops its work to a sliver above and tapers its subsidy
+    //     below. So from the height a valid signed block always counts in
+    //     full, and no run of over-cap blocks can be on the chain. The cap
+    //     (`bond::signer_cap_in`) is a share among the bonds in use, the
+    //     bonds of the set as this block leaves it that signed any of the
+    //     window's other blocks, so idle bonds do not slow the chain; the
+    //     aging is what keeps it from stalling: a signature leaves the window
+    //     a day after its block even if no block follows it. Checked before
+    //     the claimed weight so an over-cap block is reported as what it is.
+    super::bond::check_signer_cap(signer, window, &bonds, height, batch.timestamp)?;
 
     let weight = base.weight().saturating_add(credited);
     if batch.chain_weight != weight {
@@ -710,15 +725,15 @@ fn apply_batch_internal(
     }
 
     // 5a-ii. What this block may mint. `credit_in_window` has just counted
-    //     this block, so `counts[signer]` is `n`: the blocks its bond signed
-    //     in the last CAP_WINDOW, this one included. Over its cap the subsidy
-    //     tapers as `reward × cap / n`, on the same test that just dropped an
+    //     this block, so `signed_in_window` is `n`: the blocks of its window
+    //     its bond signed, this one included. Over its cap the subsidy tapers
+    //     as `reward × cap / n`, on the same test that just dropped an
     //     over-cap block's work to a sliver, and what is withheld is burned
     //     rather than paid to anyone. Unsigned blocks, and every block stamped
     //     before the mainnet switch, mint the full scheduled reward. From
     //     OVER_CAP_INVALID_FROM no valid block is over its cap (5a-i), so the
     //     taper withholds nothing there and this is always the full reward.
-    let subsidy = super::bond::subsidy_for(signer, &counts, &bonds, height, batch.timestamp);
+    let subsidy = super::bond::subsidy_for(signer, window, &bonds, height, batch.timestamp);
 
     // 5b. Contents: structure, balances, proofs and signatures.
     validate_block_contents(batch, height, skip_crypto, subsidy, relay_from)?;
@@ -746,6 +761,7 @@ fn apply_batch_internal(
     next.header_hash = batch.extension.final_hash;
     next.chain_mmr.append(&batch.extension.final_hash, true);
     next.recent_signers = recent;
+    next.recent_times = times;
     next.signer_counts = counts;
     next.work_floor = floor;
     next.depth = next.depth.saturating_add(work);

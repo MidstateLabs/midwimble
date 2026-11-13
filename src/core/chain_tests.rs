@@ -1270,18 +1270,7 @@ fn past_the_switch_a_template_pays_an_over_cap_block_less() {
 
     // What the chain will let it mint, worked out the way `apply_batch` does.
     let cap = crate::core::bond::signer_cap(&chain.state.bonds, t);
-    let mut recent = chain.state.recent_signers.clone();
-    let mut counts = chain.state.signer_counts.clone();
-    crate::core::bond::credit_in_window(
-        &mut recent,
-        &mut counts,
-        &chain.state.bonds,
-        height,
-        Some(greedy.bond_id),
-        0,
-        t,
-    );
-    let n = counts.get(&greedy.bond_id).copied().unwrap_or(0) as usize;
+    let n = chain.next_n_at(greedy.bond_id, t);
     assert!(n > cap, "the greedy bond should be past its cap ({n} of {cap})");
     let scheduled = block_reward(height);
     let tapered = crate::core::bond::capped_subsidy(scheduled, n, cap);
@@ -1295,22 +1284,45 @@ fn past_the_switch_a_template_pays_an_over_cap_block_less() {
 // ── Over-cap blocks invalid from `bond::OVER_CAP_INVALID_FROM` ───────────────
 
 impl TestChain {
-    /// `n` for a block `id` would sign next: how many of the last
-    /// `CAP_WINDOW` blocks its bond would then have signed, that block
-    /// included (worked out the way `apply_batch` does).
+    /// `n` for a block `id` would sign next: how many blocks of its window
+    /// its bond would then have signed, that block included (worked out the
+    /// way `apply_batch` does).
     fn next_n(&self, id: [u8; 32]) -> usize {
+        self.next_n_at(id, now())
+    }
+
+    /// [`TestChain::next_n`] for a block stamped `timestamp`: from
+    /// `OVER_CAP_INVALID_FROM` the window ages by its timestamp.
+    fn next_n_at(&self, id: [u8; 32], timestamp: u64) -> usize {
+        self.next_window_at(id, timestamp).0
+    }
+
+    /// `n` for the next block, signed by `id` and stamped `timestamp`, and
+    /// what the last `CAP_WINDOW` blocks alone would make it (the window
+    /// before it aged by time).
+    fn next_window_at(&self, id: [u8; 32], timestamp: u64) -> (usize, usize) {
         let mut recent = self.state.recent_signers.clone();
+        let mut times = self.state.recent_times.clone();
         let mut counts = self.state.signer_counts.clone();
         crate::core::bond::credit_in_window(
             &mut recent,
+            &mut times,
             &mut counts,
             &self.state.bonds,
             self.state.height,
             Some(id),
             0,
-            now(),
+            timestamp,
         );
-        counts.get(&id).copied().unwrap_or(0) as usize
+        let window = crate::core::bond::SignerWindow {
+            signers: &recent,
+            times: &times,
+            counts: &counts,
+        };
+        (
+            crate::core::bond::signed_in_window(window, &id, self.state.height, timestamp),
+            counts.get(&id).copied().unwrap_or(0) as usize,
+        )
     }
 
     /// The work the next block can add in full, as far as the work cap
@@ -1327,8 +1339,19 @@ impl TestChain {
     /// of a block under its cap. The window is not in the state root, so
     /// only the per-bond cap can tell this block from an honest one.
     fn block_ignoring_the_window(&self, bond: &MinerBond, payout: &StealthAddress) -> Batch {
+        self.block_ignoring_the_window_at(bond, payout, None)
+    }
+
+    /// [`TestChain::block_ignoring_the_window`], stamped `timestamp` if given.
+    fn block_ignoring_the_window_at(
+        &self,
+        bond: &MinerBond,
+        payout: &StealthAddress,
+        timestamp: Option<u64>,
+    ) -> Batch {
         let mut blind = self.state.clone();
         blind.recent_signers = Default::default();
+        blind.recent_times = Default::default();
         blind.signer_counts = Default::default();
         build_template_bonded(
             &blind,
@@ -1336,7 +1359,7 @@ impl TestChain {
             &[],
             &[(*payout, 1u64)],
             [0u8; 32],
-            None,
+            timestamp,
             Some(bond),
         )
         .unwrap()
@@ -1446,4 +1469,321 @@ fn over_cap_blocks_are_invalid_from_the_activation_height() {
     let creditable = chain.creditable();
     let block = chain.make_bonded_block(&greedy, &payout).unwrap();
     assert_eq!(apply(&mut chain, block), creditable);
+}
+
+// ── From `bond::OVER_CAP_INVALID_FROM`: bonds in use, and a window that ages ──
+
+impl TestChain {
+    /// The cap the next block, stamped `timestamp`, is judged against,
+    /// whoever signs it (`bond::next_signer_cap`).
+    fn next_cap_at(&self, timestamp: u64) -> usize {
+        crate::core::bond::next_signer_cap(
+            &self.state.recent_signers,
+            &self.state.bonds,
+            self.state.height,
+            timestamp,
+        )
+    }
+
+    /// How many bonds are in use for the next block, stamped `timestamp`
+    /// (`bond::next_bonds_in_use`).
+    fn in_use_at(&self, timestamp: u64) -> usize {
+        crate::core::bond::next_bonds_in_use(
+            &self.state.recent_signers,
+            &self.state.bonds,
+            timestamp,
+        )
+    }
+
+    /// Whether `id` may sign the next block, stamped `timestamp`.
+    fn may_sign_at(&self, id: [u8; 32], timestamp: u64) -> bool {
+        self.next_n_at(id, timestamp) <= self.next_cap_at(timestamp)
+    }
+}
+
+/// The stall v1.4.0 had, through `apply_batch` on a real chain, as mainnet
+/// stood before height 50,000: three eligible bonds, so a cap of
+/// `ceil(16 / 3) = 6` of the 16-block window counting every eligible bond,
+/// and only two of them mining, so they can sign 12 blocks of every 16.
+///
+/// - Below the activation height the cap counts the idle bond, the two
+///   bonds' blocks past it are tapered slivers, and the window does not age:
+///   a block stamped long after its bond's others is still over.
+/// - From the height the cap is a share among the bonds in use, and the idle
+///   bond's one block left the window long ago: the cap is 8, so the two
+///   bonds cover the window between them and keep a block a minute, every
+///   block valid, counted in full and paid in full. On the old cap each of
+///   those blocks is over: v1.4.0 refused them all, and the aging alone
+///   would have let them through only as older blocks aged.
+/// - When the idle bond signs again it is back in use, and the cap falls back
+///   with it.
+#[test]
+fn from_the_height_an_idle_bond_does_not_slow_the_chain() {
+    use crate::core::bond::{
+        signer_cap, sliver, CAP_WINDOW, CAP_WINDOW_SECS, OVER_CAP_INVALID_FROM,
+    };
+    let from = OVER_CAP_INVALID_FROM;
+    let mut chain = TestChain::new();
+    let payout = TestWallet::new().address();
+    let mut bonds = bonded_miners(
+        &chain,
+        &[
+            (b"stall idle", locked_long()),
+            (b"stall a", locked_long()),
+            (b"stall b", locked_long()),
+        ],
+    );
+    let (idle, a, b) = (bonds.remove(0), bonds.remove(0), bonds.remove(0));
+    // Stamped in the past, so the test can let time pass without waiting.
+    let mut t = now() - 100_000;
+    let apply = |chain: &mut TestChain, batch: Batch| -> u128 {
+        let before = chain.state.weight();
+        chain.apply(batch).unwrap();
+        chain.state.weight() - before
+    };
+
+    // Each bond registers in the block it signs; the idle one signs that one
+    // block and, until the end, never another.
+    for bond in [&idle, &a, &b] {
+        t += 1;
+        let block = chain.bonded_block_at(bond, &payout, t).unwrap();
+        apply(&mut chain, block);
+    }
+    let all = signer_cap(&chain.state.bonds, t);
+    assert_eq!(all, CAP_WINDOW.div_ceil(3));
+    assert!(
+        2 * all < CAP_WINDOW,
+        "on the old cap the bonds in use cannot cover the window"
+    );
+
+    // Below the height `a` and `b` take turns a minute apart, each signing
+    // half the window: over the old cap, so slivers.
+    let take_turns = |chain: &mut TestChain, t: &mut u64, until: u64| {
+        while chain.state.height < until {
+            *t += 60;
+            let bond = [&a, &b][chain.state.height as usize % 2];
+            let block = chain.bonded_block_at(bond, &payout, *t).unwrap();
+            chain.apply(block).unwrap();
+        }
+    };
+    take_turns(&mut chain, &mut t, from - CAP_WINDOW as u64 - 8);
+    assert_eq!(
+        chain.next_cap_at(t + 60),
+        all,
+        "below the height, every eligible bond"
+    );
+
+    // Below the height the window does not age: `a`, stamped long after
+    // every one of its blocks in the window, is still over its cap, and its
+    // block a sliver.
+    t += 2 * CAP_WINDOW_SECS;
+    let (n, by_blocks) = chain.next_window_at(a.bond_id, t);
+    assert!(n > all && n == by_blocks, "no aging below the height: {n}");
+    let creditable = chain.creditable();
+    let block = chain.bonded_block_at(&a, &payout, t).unwrap();
+    assert_eq!(apply(&mut chain, block), sliver(creditable));
+    take_turns(&mut chain, &mut t, from);
+    assert_eq!(chain.state.height, from);
+
+    // At the height only `a` and `b` are in use: the cap is half the window.
+    assert_eq!(chain.in_use_at(t + 60), 2);
+    let cap = chain.next_cap_at(t + 60);
+    assert_eq!(cap, CAP_WINDOW / 2);
+
+    // A block a minute, in turn, for three windows: each at its cap, valid,
+    // in full and paid in full, though over the old cap counted any way.
+    let start = chain.state.height;
+    while chain.state.height < start + 3 * CAP_WINDOW as u64 {
+        t += 60;
+        let bond = [&a, &b][chain.state.height as usize % 2];
+        let (n, by_blocks) = chain.next_window_at(bond.bond_id, t);
+        assert!(n <= cap, "under the cap: {n}");
+        assert!(n > all, "over the old cap, even aged: {n}");
+        assert_eq!(n, by_blocks, "on schedule nothing in the window has aged");
+        let (height, creditable) = (chain.state.height, chain.creditable());
+        let block = chain.bonded_block_at(bond, &payout, t).unwrap();
+        validate_block_contents(&block, height, true, block_reward(height), None)
+            .expect("mints the whole scheduled reward");
+        assert_eq!(apply(&mut chain, block), creditable, "counts in full");
+    }
+
+    // The idle bond signs again: its first block puts it back in use for the
+    // blocks after it, and the cap is back to a third of the window. `a`,
+    // with half the window, now has to wait, while the idle bond, with one
+    // block of it, does not.
+    t += 60;
+    let block = chain.bonded_block_at(&idle, &payout, t).unwrap();
+    apply(&mut chain, block);
+    t += 60;
+    assert_eq!(chain.in_use_at(t), 3);
+    assert_eq!(chain.next_cap_at(t), all);
+    assert!(!chain.may_sign_at(a.bond_id, t));
+    let err = chain
+        .bonded_block_at(&a, &payout, t)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("over its bond's cap"), "{err}");
+    let block = chain.bonded_block_at(&idle, &payout, t).unwrap();
+    apply(&mut chain, block);
+}
+
+/// What the aging is still needed for once idle bonds no longer count: a
+/// bond that stops mining stays in use while its blocks are in the window,
+/// and only new blocks can move a window counted in blocks. Three bonds take
+/// turns up to the height, a cap of 6 each; then `c` stops, and within a few
+/// blocks `a` and `b` are both at their caps with `c`'s blocks still in the
+/// window. Counted in blocks alone no block could ever be valid again: not
+/// `a`'s or `b`'s, and `c` is not mining.
+///
+/// - The aging frees the quota: the first block stamped `CAP_WINDOW_SECS`
+///   after enough of a bond's signatures is valid, counts in full and mints
+///   the whole reward; a second earlier it is not.
+/// - The blocks that follow move the window past `c`'s; once its last has
+///   left, the cap rises to 8 and `a` and `b` keep a block a minute between
+///   them, every block in full, without waiting -- and, covering the whole
+///   window between them, any faster pace too.
+#[test]
+fn a_bond_that_stops_mining_cannot_stall_the_chain() {
+    use crate::core::bond::{CAP_WINDOW, CAP_WINDOW_SECS, OVER_CAP_INVALID_FROM};
+    let from = OVER_CAP_INVALID_FROM;
+    let mut chain = TestChain::new();
+    let payout = TestWallet::new().address();
+    let mut bonds = bonded_miners(
+        &chain,
+        &[
+            (b"stops a", locked_long()),
+            (b"stops b", locked_long()),
+            (b"stops c", locked_long()),
+        ],
+    );
+    let (a, b, c) = (bonds.remove(0), bonds.remove(0), bonds.remove(0));
+    let mut t = now() - 100_000;
+    let apply = |chain: &mut TestChain, batch: Batch| -> u128 {
+        let before = chain.state.weight();
+        chain.apply(batch).unwrap();
+        chain.state.weight() - before
+    };
+    // Whichever of `a` and `b` may sign first, stamped no earlier than
+    // `after`, and when.
+    let first_free = |chain: &TestChain, after: u64| {
+        (after..after + 2 * CAP_WINDOW_SECS)
+            .find_map(|at| {
+                [&a, &b]
+                    .into_iter()
+                    .find(|bond| chain.may_sign_at(bond.bond_id, at))
+                    .map(|bond| (at, bond))
+            })
+            .expect("time frees the quota")
+    };
+
+    // The three take turns a minute apart up to the height, each under its
+    // cap and every block in full.
+    for bond in [&a, &b, &c] {
+        t += 1;
+        let block = chain.bonded_block_at(bond, &payout, t).unwrap();
+        apply(&mut chain, block);
+    }
+    while chain.state.height < from {
+        t += 60;
+        let bond = [&a, &b, &c][chain.state.height as usize % 3];
+        let creditable = chain.creditable();
+        let block = chain.bonded_block_at(bond, &payout, t).unwrap();
+        assert_eq!(apply(&mut chain, block), creditable);
+    }
+    let cap = chain.next_cap_at(t + 1);
+    assert_eq!((chain.in_use_at(t + 1), cap), (3, CAP_WINDOW.div_ceil(3)));
+
+    // `c` stops. `a` and `b` sign a second apart until neither may.
+    loop {
+        t += 1;
+        match chain
+            .bonded_block_at(&a, &payout, t)
+            .or_else(|_| chain.bonded_block_at(&b, &payout, t))
+        {
+            Ok(block) => {
+                let creditable = chain.creditable();
+                assert_eq!(apply(&mut chain, block), creditable);
+            }
+            Err(e) => {
+                assert!(e.to_string().contains("over its bond's cap"), "{e}");
+                break;
+            }
+        }
+    }
+    // Stuck counted in blocks: `c` is still in use, and both are over.
+    assert_eq!(
+        chain.in_use_at(t),
+        3,
+        "`c`'s blocks are still in the window"
+    );
+    assert_eq!(chain.next_cap_at(t), cap);
+    for bond in [&a, &b] {
+        let (n, by_blocks) = chain.next_window_at(bond.bond_id, t);
+        assert!(n > cap && by_blocks > cap, "{n} / {by_blocks}");
+    }
+
+    // The aging frees the quota, within a day: the first such moment, the
+    // block is valid while still over its cap counted in blocks.
+    let stuck = t;
+    let (first, bond) = first_free(&chain, stuck);
+    assert!(first <= stuck + CAP_WINDOW_SECS, "at most a day's wait");
+    let (n, by_blocks) = chain.next_window_at(bond.bond_id, first);
+    assert_eq!(n, cap, "exactly at the cap");
+    assert!(by_blocks > cap, "over it counted in blocks ({by_blocks})");
+
+    // A second earlier: refused, by the template and by consensus.
+    assert!(chain.bonded_block_at(bond, &payout, first - 1).is_err());
+    let early = chain.block_ignoring_the_window_at(bond, &payout, Some(first - 1));
+    let err = chain.apply(early).unwrap_err().to_string();
+    assert!(err.contains("over its bond's cap"), "{err}");
+
+    // At `first`: valid, counted in full, and paid the whole reward.
+    let (height, creditable) = (chain.state.height, chain.creditable());
+    let block = chain.bonded_block_at(bond, &payout, first).unwrap();
+    validate_block_contents(&block, height, true, block_reward(height), None)
+        .expect("mints the whole scheduled reward");
+    assert_eq!(apply(&mut chain, block), creditable, "counts in full");
+    t = first;
+
+    // Each block as soon as one of them may sign: the window moves on past
+    // `c`'s blocks, and once its last has left, the cap rises.
+    while chain.in_use_at(t + 1) == 3 {
+        let (at, bond) = first_free(&chain, t + 1);
+        let creditable = chain.creditable();
+        let block = chain.bonded_block_at(bond, &payout, at).unwrap();
+        assert_eq!(apply(&mut chain, block), creditable, "counts in full");
+        t = at;
+        assert!(
+            chain.state.height < from + 4 * CAP_WINDOW as u64,
+            "`c` leaves use"
+        );
+    }
+    assert_eq!(chain.in_use_at(t + 60), 2);
+    let cap = chain.next_cap_at(t + 60);
+    assert_eq!(cap, CAP_WINDOW / 2);
+
+    // From here the two keep a block a minute for three windows, every
+    // block in full and none of them waiting.
+    let start = chain.state.height;
+    while chain.state.height < start + 3 * CAP_WINDOW as u64 {
+        t += 60;
+        let creditable = chain.creditable();
+        let block = chain
+            .bonded_block_at(&a, &payout, t)
+            .or_else(|_| chain.bonded_block_at(&b, &payout, t))
+            .expect("one of the two may sign");
+        assert_eq!(apply(&mut chain, block), creditable, "every block in full");
+    }
+
+    // Between them the two cover the whole window, so they keep up any pace
+    // the work allows: the cap is a share of the window, not a rate, and the
+    // aging only ever lets a signature leave early.
+    for _ in 0..2 * CAP_WINDOW {
+        t += 10;
+        let block = chain
+            .bonded_block_at(&a, &payout, t)
+            .or_else(|_| chain.bonded_block_at(&b, &payout, t))
+            .expect("ten-second blocks, every one valid");
+        chain.apply(block).unwrap();
+    }
 }

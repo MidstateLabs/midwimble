@@ -318,9 +318,10 @@ async fn bonds(AxState(node): AxState<NodeHandle>) -> Json<Value> {
         .collect();
     list.sort_by(|a, b| a["bond_id"].as_str().cmp(&b["bond_id"].as_str()));
     use crate::core::bond::{
-        min_mining_bond, min_remaining_bond_lock, registration_min_bond,
-        work_doublings_since_genesis, BONDED_MINING_FROM, BOND_RETARGET_FROM, EARLY_BONDS_UNTIL,
-        MAX_MINING_BOND, OVER_CAP_INVALID_FROM, WORK_DOUBLINGS_PER_BOND_DOUBLING,
+        min_mining_bond, min_remaining_bond_lock, next_bonds_in_use, next_signer_cap,
+        registration_min_bond, work_doublings_since_genesis, BONDED_MINING_FROM,
+        BOND_RETARGET_FROM, EARLY_BONDS_UNTIL, MAX_MINING_BOND, OVER_CAP_INVALID_FROM,
+        WORK_DOUBLINGS_PER_BOND_DOUBLING,
     };
     let from = BONDED_MINING_FROM;
     Json(json!({
@@ -334,9 +335,19 @@ async fn bonds(AxState(node): AxState<NodeHandle>) -> Json<Value> {
         "early_bonds_until": if EARLY_BONDS_UNTIL == 0 { Value::Null } else { json!(EARLY_BONDS_UNTIL) },
         // From this height a block over its bond's cap is invalid rather
         // than tapered (`bond::check_signer_cap`); `over_cap_invalid` says
-        // whether the next block is past it.
+        // whether the next block is past it. From the same height a
+        // signature also leaves the window once its block is
+        // `over_cap_window_secs` older than the block being judged
+        // (`bond::signed_in_window`).
         "over_cap_invalid_from": OVER_CAP_INVALID_FROM,
         "over_cap_invalid": crate::core::bond::over_cap_invalid_at(state.height),
+        "over_cap_window_secs": crate::core::bond::CAP_WINDOW_SECS,
+        // The cap the next block, stamped now, is judged against
+        // (`bond::next_signer_cap`): from `over_cap_invalid_from` an equal
+        // share of the window among `bonds_in_use`, the eligible bonds that
+        // signed any of its other blocks; below it, among every eligible bond.
+        "signer_cap": next_signer_cap(&state.recent_signers, &state.bonds, state.height, now),
+        "bonds_in_use": next_bonds_in_use(&state.recent_signers, &state.bonds, now),
         // What a *new* registration must lock at this chain's difficulty:
         // the figure to check before locking a coin on midstate.
         "registration_min_bond": registration_min_bond(&state.target, now),

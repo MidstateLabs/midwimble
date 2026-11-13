@@ -341,6 +341,29 @@ fn header_works(
     Ok(out)
 }
 
+/// The timestamp of each block in `range`, oldest first, from its stored
+/// header: what the per-bond window ages by (`bond::signed_in_window`). As
+/// with the work window, a missing header is an error, never a gap.
+fn header_timestamps(
+    headers: &impl ReadableTable<u64, &'static [u8]>,
+    range: std::ops::Range<u64>,
+) -> Result<Vec<u64>> {
+    let mut out = Vec::with_capacity(range.end.saturating_sub(range.start) as usize);
+    for entry in headers.range(range.clone())? {
+        let (_, v) = entry?;
+        let header: BatchHeader = bincode::deserialize(v.value())?;
+        out.push(header.timestamp);
+    }
+    if out.len() as u64 != range.end.saturating_sub(range.start) {
+        bail!(
+            "headers {}..{} are incomplete; the database is corrupt",
+            range.start,
+            range.end
+        );
+    }
+    Ok(out)
+}
+
 fn load_header_range(
     db: &Database,
     def: TableDefinition<u64, &[u8]>,
@@ -613,6 +636,7 @@ impl Storage {
             bonds,
             relay,
             recent_signers: Default::default(),
+            recent_times: Default::default(),
             signer_counts: Default::default(),
             work_floor: Default::default(),
             effects: Default::default(),
@@ -711,23 +735,26 @@ impl Storage {
     }
 
     /// Refills the fork-choice windows (`bond::credit_work`) from the stored
-    /// blocks just below `state`: signers from the signer log, work from the
-    /// headers. The windows decide the chain weight the next block must
-    /// claim, so they are consensus: a signer or header that cannot be found
-    /// is an error, never a guess.
+    /// blocks just below `state`: signers from the signer log, timestamps and
+    /// work from the headers. The windows decide the chain weight the next
+    /// block must claim and, from `bond::OVER_CAP_INVALID_FROM`, whether a
+    /// signed block is valid at all, so they are consensus: a signer or
+    /// header that cannot be found is an error, never a guess.
     fn rebuild_fork_choice_windows(&self, state: &mut State) -> Result<()> {
         let end = state.height;
         let start = end.saturating_sub(crate::core::bond::CAP_WINDOW as u64);
         let txn = self.db.begin_read()?;
         let log = txn.open_table(SIGNERS)?;
         let blocks = txn.open_table(BATCHES)?;
+        let headers = txn.open_table(HEADERS)?;
         let mut signers = Vec::with_capacity((end - start) as usize);
         for h in start..end {
             signers.push(logged_signer(&log, &blocks, h)?);
         }
-        crate::core::bond::rebuild_signer_window(state, signers);
+        let times = header_timestamps(&headers, start..end)?;
+        crate::core::bond::rebuild_signer_window(state, signers.into_iter().zip(times));
         let floor_start = end.saturating_sub(crate::core::bond::WORK_CAP_WINDOW as u64);
-        let works = header_works(&txn.open_table(HEADERS)?, floor_start..end)?;
+        let works = header_works(&headers, floor_start..end)?;
         crate::core::bond::rebuild_work_floor(state, works);
         Ok(())
     }
@@ -939,18 +966,24 @@ impl Storage {
             // The fork-choice windows below the first new block, rebuilt as the
             // node rebuilds its own, so each block is weighed as the node did.
             let mut recent: im::Vector<Option<[u8; 32]>> = im::Vector::new();
+            let mut times: im::Vector<u64> = im::Vector::new();
             let mut counts: im::HashMap<[u8; 32], u32> = im::HashMap::new();
             let window_start = first_height.saturating_sub(crate::core::bond::CAP_WINDOW as u64);
-            for h in window_start..first_height {
+            let window_times = header_timestamps(&headers, window_start..first_height)?;
+            for (h, timestamp) in (window_start..first_height).zip(window_times) {
                 let signer = logged_signer(&signer_log, &blocks, h)?;
+                // Only recording the window: these blocks were weighed when
+                // they were committed, so the weight returned is not wanted,
+                // and height 0 spares judging each one against its window.
                 crate::core::bond::credit_in_window(
                     &mut recent,
+                    &mut times,
                     &mut counts,
                     &bonds,
-                    h,
+                    0,
                     signer,
                     0,
-                    0,
+                    timestamp,
                 );
             }
             let mut floor: im::Vector<(u64, u128)> = im::Vector::new();
@@ -1080,6 +1113,7 @@ impl Storage {
                 let creditable = crate::core::bond::cap_work(&mut floor, height, work);
                 let credited = crate::core::bond::credit_in_window(
                     &mut recent,
+                    &mut times,
                     &mut counts,
                     &bonds,
                     height,
@@ -1091,10 +1125,14 @@ impl Storage {
                 // `state::apply_batch` applied when it accepted the block:
                 // the scheduled reward, tapered once its signer is over cap
                 // for the window. `credit_in_window` has just counted this
-                // block, so `counts[signer]` is `n`.
+                // block, so `signed_in_window` is `n`.
                 let subsidy = crate::core::bond::subsidy_for(
                     signer,
-                    &counts,
+                    crate::core::bond::SignerWindow {
+                        signers: &recent,
+                        times: &times,
+                        counts: &counts,
+                    },
                     &bonds,
                     height,
                     batch.timestamp,
@@ -1771,6 +1809,120 @@ mod tests {
         }
         mine_signed(&storage, &mut loaded, &mut ts, &to, &b);
         mine_signed(&storage, &mut loaded, &mut ts, &to, &a);
+    }
+
+    /// From `OVER_CAP_INVALID_FROM` the per-bond window ages by the blocks'
+    /// timestamps, which storage takes from the headers, and the cap is a
+    /// share among the bonds in use, which it takes from the signers. Three
+    /// bonds take turns up to the height; then one stops, and the other two
+    /// soon reach their caps with its blocks still in the window. They carry
+    /// on only as their signatures age, until its blocks have left the window
+    /// and their cap rises. Storage replays each of those blocks -- valid only
+    /// by the aging, or only because a bond has left use -- at the weight the
+    /// node gave it, and a restart or a rewind rebuilds the window, timestamps
+    /// and all, so the next block is judged as the node would have judged it.
+    #[test]
+    fn storage_judges_the_signer_window_exactly_as_the_node_does() {
+        use crate::core::bond::{
+            next_bonds_in_use, next_signer_cap, quota_used, signer_cap, MinerBond, CAP_WINDOW,
+            CAP_WINDOW_SECS, OVER_CAP_INVALID_FROM,
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let (storage, mut state, mut ts) = fresh(dir.path());
+        let to = WalletKeys::random().address();
+        let mut bonds = devnet_bonds(&[b"aged a", b"aged b", b"aged c"], &state.target);
+        let (a, b, c) = (bonds.remove(0), bonds.remove(0), bonds.remove(0));
+        // Three bonds taking turns on schedule, up to the height.
+        while state.height < OVER_CAP_INVALID_FROM {
+            let bond = [&a, &b, &c][state.height as usize % 3];
+            mine_signed(&storage, &mut state, &mut ts, &to, bond);
+        }
+        let in_use =
+            |state: &State, t: u64| next_bonds_in_use(&state.recent_signers, &state.bonds, t);
+        let cap_at = |state: &State, t: u64| {
+            next_signer_cap(&state.recent_signers, &state.bonds, state.height, t)
+        };
+        // What `bond` has used of the next block's window stamped `t`, aged
+        // by time as the rule ages it, or counted in blocks alone.
+        let used = |state: &State, bond: &MinerBond, t: u64, aged: bool| {
+            let height = if aged { state.height } else { 0 };
+            let used = quota_used(&state.recent_signers, &state.recent_times, height, t);
+            used.get(&bond.bond_id).copied().unwrap_or(0) as usize
+        };
+        // When `bond` can next sign, stamped no earlier than `after`.
+        let free_at = |state: &State, bond: &MinerBond, after: u64| {
+            (after..after + 2 * CAP_WINDOW_SECS)
+                .find(|&t| used(state, bond, t, true) < cap_at(state, t))
+                .unwrap()
+        };
+        let mut t = *ts.last().unwrap();
+        let all = signer_cap(&state.bonds, t);
+        assert_eq!((in_use(&state, t + 1), cap_at(&state, t + 1)), (3, all));
+
+        // `c` stops. `a` and `b` sign each block as soon as either may.
+        let mut history = Vec::new();
+        let (mut by_aging, mut by_leaving) = (0, 0);
+        for _ in 0..3 * CAP_WINDOW {
+            let (at, bond) = [&a, &b]
+                .into_iter()
+                .map(|bond| (free_at(&state, bond, t + 1), bond))
+                .min_by_key(|(at, _)| *at)
+                .unwrap();
+            let cap = cap_at(&state, at);
+            // Valid only by the aging: over its cap counted in blocks.
+            by_aging += usize::from(used(&state, bond, at, false) >= cap);
+            // Valid only because `c` left use: over the cap of every bond.
+            by_leaving += usize::from(used(&state, bond, at, true) >= all);
+            let before = state.weight();
+            let creditable = {
+                let mut floor = state.work_floor.clone();
+                crate::core::bond::cap_work(&mut floor, state.height, calculate_work(&state.target))
+            };
+            // Committing replays the block's weight and pay and cross-checks
+            // them against the node's: such a block counts in full there too.
+            mine_signed_at(&storage, &mut state, &mut ts, &to, bond, at);
+            assert_eq!(
+                state.weight() - before,
+                creditable,
+                "in full at {}",
+                state.height - 1
+            );
+            t = at;
+            history.push((
+                state.height,
+                state.capped,
+                state.recent_times.clone(),
+                in_use(&state, t + 1),
+            ));
+        }
+        assert!(by_aging > 0, "some blocks were valid only by the aging");
+        assert!(by_leaving > 0, "some only because `c` had left use");
+        assert_eq!(
+            (in_use(&state, t + 1), cap_at(&state, t + 1)),
+            (2, CAP_WINDOW / 2),
+            "`c` has left use and the cap has risen"
+        );
+        drop(storage);
+
+        let storage = Storage::open(dir.path()).unwrap();
+        let mut loaded = storage.load_state().unwrap().unwrap();
+        assert_eq!((loaded.depth, loaded.capped), (state.depth, state.capped));
+        assert_eq!(loaded.recent_signers, state.recent_signers);
+        assert_eq!(loaded.recent_times, state.recent_times);
+        assert_eq!(loaded.signer_counts, state.signer_counts);
+        for (height, capped, times, bonds_in_use) in &history {
+            let rewound = storage.state_at(&loaded, *height).unwrap();
+            assert_eq!(rewound.capped, *capped, "height {height}");
+            assert_eq!(&rewound.recent_times, times, "height {height}");
+            let t = *times.back().unwrap() + 1;
+            assert_eq!(in_use(&rewound, t), *bonds_in_use, "height {height}");
+        }
+        // The rebuilt window judges the next block as the node's own would.
+        for bond in [&a, &b] {
+            assert_eq!(free_at(&loaded, bond, t + 1), free_at(&state, bond, t + 1));
+        }
+        let next = free_at(&loaded, &a, t + 1);
+        mine_signed_at(&storage, &mut loaded, &mut ts, &to, &a, next);
     }
 
     /// Every committed block records what it was allowed to mint, so the

@@ -716,11 +716,17 @@ pub struct State {
     #[serde(default)]
     pub relay: Relay,
     /// Signers of the last `bond::CAP_WINDOW` blocks, oldest first (`None`
-    /// for an unsigned block), and how many of them each bond signed. Not in
-    /// the state root: it only weights fork choice (`bond::credit_work`), and
-    /// storage rebuilds it from the stored blocks.
+    /// for an unsigned block), their timestamps (`recent_times`, the same
+    /// blocks in the same order), and how many of them each bond signed. Not
+    /// in the state root: it weights fork choice (`bond::credit_work`) and,
+    /// from `bond::OVER_CAP_INVALID_FROM`, decides which signed blocks are
+    /// valid (`bond::check_signer_cap`), against a cap shared among the bonds
+    /// it shows in use (`bond::signer_cap_in`); storage and snapshots rebuild it
+    /// from the headers, which carry every block's signer and timestamp.
     #[serde(skip)]
     pub recent_signers: im::Vector<Option<[u8; 32]>>,
+    #[serde(skip)]
+    pub recent_times: im::Vector<u64>,
     #[serde(skip)]
     pub signer_counts: im::HashMap<[u8; 32], u32>,
     /// The low points of the last `bond::WORK_CAP_WINDOW` blocks' work, as
@@ -775,6 +781,7 @@ impl State {
             bonds: BondSet::default(),
             relay: Relay::genesis(),
             recent_signers: Default::default(),
+            recent_times: Default::default(),
             signer_counts: Default::default(),
             work_floor: Default::default(),
             effects: Default::default(),

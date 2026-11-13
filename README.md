@@ -7,11 +7,13 @@ disaster recovery.
 
 **Status:** Mainnet since 31 October 2026. Not audited.
 
-The current release is **v1.4.0-DIMEBAG**. From height **50,000** (around
-18 November 2026 UTC), a signed block over its bond's cap is invalid.
-Miners and pools should upgrade before then; a node that only follows the
-chain need not. Notes: `docs/releases/v1.4.0-DIMEBAG.md`. `midwimble
---version` prints the release; `midwimble params` prints the height.
+The current release is **v1.4.1-DIMEBAG**. From height **50,000** (around
+18 November 2026 UTC), a signed block over its bond's cap is invalid, a
+bond's signature leaves its window a day after its block, and the cap is
+shared among the bonds in use. **Every node** must
+run v1.4.1-DIMEBAG or later before then; v1.4.0-DIMEBAG is not enough. Notes:
+`docs/releases/v1.4.1-DIMEBAG.md`. `midwimble --version` prints the release;
+`midwimble params` prints the height.
 
 About 62,000 lines of Rust. The public explorer is
 [mw.cypherpunk.gold](https://mw.cypherpunk.gold/), the browser wallet
@@ -87,16 +89,18 @@ About 62,000 lines of Rust. The public explorer is
   It is the same `n > cap` test that already drops an over-cap block's
   fork-choice weight to 1/1024 of its work, so pay and weight agree.
 - **Over-cap blocks invalid from height 50,000:** from that height a signed
-  block whose bond has signed more than its cap of the last 1,440 blocks
-  (`n > signer_cap`, the same test as the taper) is rejected, not tapered.
-  Below 50,000, the taper above and the sliver weight still apply. This is a
-  tightening, not a split by default: blocks this release produces are
-  valid to older nodes, which already prefer a full-weight block to a run
-  of slivers (one full-weight block outweighs 1,023 over-cap ones). Miners
-  and pools should run v1.4.0-DIMEBAG or later before height 50,000, which
-  is expected around 18 November 2026 UTC; a node that only follows the
-  chain need not, though it is still good to. After the height, difficulty
-  tracks the hashrate that can produce a valid block
+  block whose bond has signed more than its cap of its window
+  (`n > cap`, the same test as the taper) is rejected, not tapered. From the
+  same height the window ages: it is the last 1,440 blocks, less any stamped
+  a day or more before the block being judged, so no stall lasts more than a
+  day; and the cap is shared among the bonds in use, those that signed any
+  other block of the window, so idle bonds no longer slow the chain. Below
+  50,000, the taper above and the sliver weight still apply, on the last
+  1,440 blocks and the cap of every eligible bond. This is a hard fork: every
+  node, follower or miner, must run v1.4.1-DIMEBAG or later before height
+  50,000, which is expected around 18 November 2026 UTC. v1.4.0-DIMEBAG, and
+  every older release, rejects blocks these rules let through. After the
+  height, difficulty tracks the hashrate that can produce a valid block
   (`docs/OVER_CAP_INVALID.md`).
 - **Over-cap blocks are orphaned** (below height 50,000, local policy): one
   block that counts in full outweighs up to 1,023 over-cap ones, so while
@@ -386,7 +390,7 @@ Each hash is exactly its nonce's walk (`core/walk.rs`, midstate's, whole).
 ## Usage
 
 ```sh
-midwimble --version                               # 1.4.0-DIMEBAG
+midwimble --version                               # 1.4.1-DIMEBAG
 midwimble params                                  # launch parameters, emission, activation height
 export MIDWIMBLE_PASSWORD=...
 midwimble wallet --wallet w.mww create            # prints a v1 address + 24 words (recovery key: ~seconds to a minute)
@@ -483,9 +487,9 @@ depth are set (`docs/LAUNCH.md`, `docs/TESTNET.md`).
 Upcoming:
 
 - **Height 50,000** (around 18 November 2026 UTC): over-cap blocks become
-  invalid. Miners and pools should run v1.4.0-DIMEBAG or later
-  (`docs/OVER_CAP_INVALID.md`). Follower nodes need not, though it is still
-  good to.
+  invalid, a signature leaves its bond's window a day after its block, and
+  the cap is shared among the bonds in use. Every node must run
+  v1.4.1-DIMEBAG or later (`docs/OVER_CAP_INVALID.md`).
 - **30 November 2026, 00:00 UTC:** new bond registrations follow the
   retarget described under **Bond retarget** above.
 

@@ -318,7 +318,8 @@ deterministic from midwimble's chain alone.
 | `RELAY_WINDOW` | 2,880 | Two days of midstate headers kept: registrations and forks must be this recent. |
 | `RELAY_MAX_FUTURE` | 30 minutes | How far a relayed header's timestamp may be past its block's: twice the future limit of either chain, so real headers always fit and fake ones cannot claim time that has not passed. |
 | `CAP_WINDOW`, `CAP_K` | 1,440 blocks, 360 | Four full-weight blocks a bond a day (the per-bond cap, below). |
-| `OVER_CAP_INVALID_FROM` | height 50,000 | From it, a block over its bond's cap is invalid rather than tapered and weighed as a sliver (`docs/OVER_CAP_INVALID.md`). About five and a half days after the 2026-11-12 UTC tip; 128 in test builds. |
+| `OVER_CAP_INVALID_FROM` | height 50,000 | From it, a block over its bond's cap is invalid rather than tapered and weighed as a sliver, and the cap is a share among the bonds in use rather than every eligible bond (`docs/OVER_CAP_INVALID.md`). About five and a half days after the 2026-11-12 UTC tip; 128 in test builds. |
+| `CAP_WINDOW_SECS` | 86,400 seconds (a day) | From `OVER_CAP_INVALID_FROM`, a block of the window stamped this long or longer before the block judged no longer counts against its bond's cap, so the window moves even when blocks do not. 960 in test builds. |
 | `WORK_CAP_WINDOW` | 10,080 blocks (7 days) | No block counts for more than a quarter above the lowest of the week before it (the work cap, below). |
 
 ## How much work a registration needs
@@ -478,7 +479,8 @@ ever spend the coin, and the pool signs blocks with the bond.
 **Below height 50,000 the cap is a fork-choice rule; from it, a validity
 rule.** Over any 1,440 blocks (`CAP_WINDOW`), a bond adds full work to its
 chain's weight for at most `ceil(1440 / min(eligible bonds, 360))` of them
-(`CAP_K = 360`): four blocks a day once 360 or more bonds are eligible. Below
+(`CAP_K = 360`): four blocks a day once 360 or more bonds are eligible. From
+height 50,000 the share is among the bonds in use instead, below. Below
 height 50,000 (`bond::OVER_CAP_INVALID_FROM`), blocks beyond that stay valid,
 but add only 1/1024 of their work, and from the mainnet switch they mint only
 `cap / n` of their subsidy, where `n` is how many of the window the bond has
@@ -487,32 +489,47 @@ explorer's burn tracker (`/#/burn`) totals it, by bond and over time.
 
 **From height 50,000 an over-cap block is invalid** (`bond::check_signer_cap`,
 in `state::apply_batch`): the same `n > cap` test, with no allowance, so a
-block at the cap is valid and counts in full and the next is rejected. This is
-a hard fork, and every over-cap block below the height stays valid. Why, what
+block at the cap is valid and counts in full and the next is rejected. From
+the same height the window ages by time: a block of the last 1,440 stamped a
+day or more (`CAP_WINDOW_SECS`) before the block judged no longer counts
+(`bond::signed_in_window`), and the cap is `ceil(1440 / min(bonds in use,
+360))`, a bond being in use when it is eligible and signed at least one of
+the 1,439 blocks before the one judged (`bond::signer_cap_in`). This is a
+hard fork, and every over-cap block below the height stays valid. Why, what
 it changes and how to upgrade: `docs/OVER_CAP_INVALID.md`. So:
 
 - below the height the chain never stalls: a lone producer can always extend
   it, and a longer chain is always a heavier one. From the height a valid
-  block needs a bond under its cap, so the bonds actually mining must have
-  quota for the window between them (`docs/OVER_CAP_INVALID.md`,
-  "Liveness");
+  block needs a bond under its cap; the aging lets every bond that is mining
+  sign again within a day, so nothing stops the chain for longer than that,
+  and since the bonds in use share the whole window, idle bonds do not slow
+  it at all (`docs/OVER_CAP_INVALID.md`, "Liveness");
 - to outweigh the honest chain, an attacker needs more full-weight blocks
   than it, so bonds of its own for every block it replaces, as well as more
   hashrate than the honest miners. More hashrate cannot stand in for bonds:
   that takes the work cap, below;
-- the cap counts *registered, eligible* bonds, not recent signers. On an
-  attacker's private chain the attacker is the only signer, so a cap measured
-  by signers would lift exactly where it is needed;
+- below the height the cap counts *registered, eligible* bonds, not recent
+  signers. On an attacker's private chain the attacker is the only signer, so
+  a cap measured by signers would lift exactly where it is needed. From the
+  height it counts the bonds in use, but in blocks, not time: on a private
+  chain the bonds that signed the blocks it forked from stay in use until it
+  has made a whole window of blocks of its own, which the aging lets its
+  bonds sign no faster than the honest chain's cap a day, so the cap holds
+  where it is needed (`docs/OVER_CAP_INVALID.md`, "A chain mined in
+  private");
 - a pool with a share `s` of the hashrate needs about `360 × s` bonds for all
   of its blocks to count in full: 108 bonds at 30%. Covering the whole
   network takes 360 bonds, so the capital locked behind block production
   grows with the hashrate it covers, while a miner with less than 1/360 of it
   needs only its one bond.
 
-While the network has fewer than 360 eligible bonds, they share the window
-equally, and a lone producer is uncapped. The window is the last 1,440 blocks,
-the new one included. It is not part of the state root: nodes rebuild it from
-their stored blocks. Cumulative work, which checkpoints and anchors measure, is
+While the network has fewer than 360 eligible bonds (from height 50,000,
+bonds in use), they share the window equally, and a lone producer is
+uncapped. The window is the last 1,440 blocks,
+the new one included, and from height 50,000 less any of them stamped a day
+or more before the new one. It is not part of the state root: nodes rebuild
+it from their stored headers, which carry every block's signer and
+timestamp. Cumulative work, which checkpoints and anchors measure, is
 unchanged; fork choice compares it less the work the caps withheld.
 
 ### The work cap

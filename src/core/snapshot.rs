@@ -19,10 +19,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 /// Headers carried for the timestamp window (median-time-past) and targets,
-/// and for the fork-choice windows: the signers of the last [`CAP_WINDOW`]
-/// blocks and the work of the last [`WORK_CAP_WINDOW`] decide how much the
-/// next block adds to the chain's weight, which every block's header claims
-/// and every node checks.
+/// and for the fork-choice windows: the signers and timestamps of the last
+/// [`CAP_WINDOW`] blocks and the work of the last [`WORK_CAP_WINDOW`] decide
+/// how much the next block adds to the chain's weight, which every block's
+/// header claims and every node checks, and whether its signer is under its
+/// cap (`bond::check_signer_cap`).
 pub const SNAPSHOT_HEADERS: usize = max(60, max(CAP_WINDOW, WORK_CAP_WINDOW));
 
 const fn max(a: usize, b: usize) -> usize {
@@ -275,6 +276,7 @@ impl Snapshot {
             bonds,
             relay,
             recent_signers: Default::default(),
+            recent_times: Default::default(),
             signer_counts: Default::default(),
             work_floor: Default::default(),
             effects: Default::default(),
@@ -319,10 +321,15 @@ impl Snapshot {
         if state.checkpoint_parts() != self.parts {
             bail!("rebuilt state does not reproduce the checkpoint");
         }
-        // The fork-choice windows, from the signers and targets the headers
-        // carry.
+        // The fork-choice windows, from the signers, timestamps and targets
+        // the headers carry (all under their proof of work).
         let window = self.headers.len().saturating_sub(CAP_WINDOW);
-        rebuild_signer_window(&mut state, self.headers[window..].iter().map(|h| h.signer));
+        rebuild_signer_window(
+            &mut state,
+            self.headers[window..]
+                .iter()
+                .map(|h| (h.signer, h.timestamp)),
+        );
         let window = self.headers.len().saturating_sub(WORK_CAP_WINDOW);
         rebuild_work_floor(
             &mut state,
