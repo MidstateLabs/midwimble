@@ -23,11 +23,16 @@ use crate::node::NodeHandle;
 use crate::sync::MAX_REORG_DEPTH;
 use axum::extract::{Path, Query, State as AxState};
 use axum::http::StatusCode;
+use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::{Extension, Json};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::{HashMap, VecDeque};
+use std::convert::Infallible;
+use std::pin::Pin;
 use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll};
+use std::time::Duration;
 
 type ApiError = (StatusCode, Json<Value>);
 type ApiResult = Result<Json<Value>, ApiError>;
@@ -379,6 +384,20 @@ fn printable(extra: &[u8; 32]) -> Option<String> {
         .collect();
     let clean = !text.is_empty() && text.chars().all(|c| c.is_ascii_graphic() || c == ' ');
     clean.then_some(text)
+}
+
+// ── SSE helpers ──────────────────────────────────────────────────────────────
+
+/// Wraps a tokio unbounded mpsc receiver as a `futures::Stream`.
+struct ReceiverStream<T> {
+    rx: tokio::sync::mpsc::UnboundedReceiver<T>,
+}
+
+impl<T> futures::Stream for ReceiverStream<T> {
+    type Item = T;
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.rx.poll_recv(cx)
+    }
 }
 
 #[derive(Deserialize)]
@@ -875,6 +894,7 @@ pub async fn network(AxState(node): AxState<NodeHandle>) -> Json<Value> {
         "banned": info.banned.len(),
         "mempool_count": info.mempool_count,
         "listening": info.listen_addrs.len(),
+        "version": env!("CARGO_PKG_VERSION"),
         // Dandelion++ exactly as `Node::route_stem` would apply it now.
         "dandelion": {
             "fluff_percent": d.fluff_percent,
@@ -920,6 +940,174 @@ pub async fn search(
         Err(not_found("height, hash, commitment, kernel or bond"))
     })
     .await
+}
+
+// ── SSE Events ───────────────────────────────────────────────────────────────
+
+/// Streams block summaries as Server-Sent Events when new blocks are applied.
+/// Polls `state.height` every two seconds; pushes a "block" event with the
+/// same JSON as `/explorer/blocks` returns for each new block.
+pub async fn events(
+    AxState(node): AxState<NodeHandle>,
+) -> Sse<impl futures::Stream<Item = Result<Event, Infallible>>> {
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+
+    tokio::spawn(async move {
+        let mut last_height = node.state().height;
+        loop {
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            let state = node.state();
+            while last_height < state.height {
+                let height = last_height;
+                last_height += 1;
+                if let Ok(Some(batch)) = node.storage().load_batch(height) {
+                    let prev = if height > 0 {
+                        node.storage().load_batch(height - 1).ok().flatten()
+                    } else {
+                        None
+                    };
+                    let s = summary(
+                        height,
+                        &batch,
+                        prev.as_ref().map(|p| p.timestamp),
+                        node.storage().subsidy_at(height).ok().flatten(),
+                        prev.as_ref().map(|p| p.chain_weight),
+                    );
+                    let data = serde_json::to_string(&s).unwrap_or_default();
+                    if tx
+                        .send(Ok(Event::default().event("block").data(data)))
+                        .is_err()
+                    {
+                        return;
+                    }
+                }
+            }
+        }
+    });
+
+    Sse::new(ReceiverStream { rx }).keep_alive(
+        KeepAlive::new()
+            .interval(Duration::from_secs(15))
+            .text("keep-alive"),
+    )
+}
+
+// ── Charts ───────────────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub(crate) struct ChartCount {
+    #[serde(default = "default_chart_count")]
+    count: u64,
+}
+
+fn default_chart_count() -> u64 {
+    200
+}
+
+/// Difficulty data points for chart rendering: the last `count` (default 200,
+/// max 1000) blocks' heights, timestamps and difficulty bits.
+pub(crate) async fn chart_difficulty(
+    AxState(node): AxState<NodeHandle>,
+    Query(q): Query<ChartCount>,
+) -> ApiResult {
+    let count = q.count.min(1000);
+    let tip = node.state().height;
+    let start = tip.saturating_sub(count);
+    let headers = node
+        .storage()
+        .load_headers(start, count)
+        .map_err(internal)?;
+    let points: Vec<Value> = headers
+        .iter()
+        .map(|h| {
+            json!({
+                "height": h.height,
+                "timestamp": h.timestamp,
+                "difficulty_bits": difficulty_bits(&h.target),
+            })
+        })
+        .collect();
+    Ok(Json(json!({ "tip": tip, "points": points })))
+}
+
+/// Emission data points: the burn tracker's time series, which gives
+/// scheduled, minted and withheld per day since the mainnet switch.
+pub async fn chart_emission(
+    AxState(node): AxState<NodeHandle>,
+    Extension(index): Extension<SharedIndex>,
+) -> ApiResult {
+    burn::emission_series(node, index).await
+}
+
+// ── Anchors ──────────────────────────────────────────────────────────────────
+
+/// Recent anchored checkpoints with their Midstate posting status, plus
+/// the current finality info.
+pub async fn anchors(AxState(node): AxState<NodeHandle>) -> ApiResult {
+    let records = node.anchors().await.map_err(internal)?;
+    let finality = node.storage().finality().map_err(internal)?;
+    let checkpoints: Vec<Value> = records
+        .iter()
+        .map(|r| {
+            json!({
+                "height": r.checkpoint.mw_height,
+                "anchor_tx": r.checkpoint_id,
+                "depth": r.posted_at_midstate_height,
+                "confirmed": r.evidence.is_some(),
+            })
+        })
+        .collect();
+    Ok(Json(json!({
+        "checkpoints": checkpoints,
+        "finality": {
+            "floor": finality.floor,
+            "checkpoint_id": finality.checkpoint_id.map(hex::encode),
+        }
+    })))
+}
+
+// ── Relay ────────────────────────────────────────────────────────────────────
+
+/// The midstate relay window: how many headers have been relayed, where
+/// the tip and root sit, and the window size.
+pub async fn explorer_relay(AxState(node): AxState<NodeHandle>) -> Json<Value> {
+    let state = node.state();
+    let relay = &state.relay;
+    let tip = relay.tip();
+    let root = relay.base();
+    Json(json!({
+        "tip_height": tip.height,
+        "tip_hash": hex::encode(tip.hash),
+        "window_size": relay.len(),
+        "entries_count": relay.len(),
+        "root_height": root.height,
+    }))
+}
+
+// ── API ──────────────────────────────────────────────────────────────────────
+
+/// A static JSON document listing every explorer endpoint and its purpose.
+pub async fn api() -> Json<Value> {
+    Json(json!({
+        "endpoints": {
+            "GET /explorer/blocks": "Block summaries, newest first (?before=N&count=N)",
+            "GET /explorer/block/{id}": "One block in full, by height or hash",
+            "GET /explorer/output/{commitment}": "An output's life: creation and spend blocks",
+            "GET /explorer/kernel/{excess}": "A kernel and the block that carries it",
+            "GET /explorer/bonds": "Every registered bond with its fork-choice window share",
+            "GET /explorer/bond/{id}": "One bond: terms, quota, blocks signed, burn figures",
+            "GET /explorer/burn": "Burn tracker: over-cap taper totals over time and per bond",
+            "GET /explorer/mempool": "Mempool transactions, highest fee rate first",
+            "GET /explorer/network": "This node's view of the network",
+            "GET /explorer/search/{q}": "What a search term names: height, hash, commitment, kernel or bond",
+            "GET /explorer/events": "Server-Sent Events: stream block summaries as new blocks arrive",
+            "GET /explorer/chart/difficulty": "Difficulty data points for chart rendering (?count=N, default 200, max 1000)",
+            "GET /explorer/chart/emission": "Emission time series: scheduled vs minted vs withheld per day",
+            "GET /explorer/anchors": "Recent anchored checkpoints with finality status",
+            "GET /explorer/relay": "Midstate relay window state",
+            "GET /explorer/api": "This document"
+        }
+    }))
 }
 
 #[cfg(test)]

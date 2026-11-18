@@ -28,7 +28,7 @@ use crate::storage::Storage;
 use axum::body::Bytes;
 use axum::extract::State as AxState;
 use axum::response::{IntoResponse, Response};
-use axum::Extension;
+use axum::{Extension, Json};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::Arc;
@@ -574,6 +574,20 @@ pub(super) async fn for_bond(
         .map_err(internal)?
         .map_err(internal)?;
     Ok(report.bond(&id))
+}
+
+/// Returns the burn tracker's time-series data for the emission chart
+/// (`GET /explorer/chart/emission`): daily tallies of scheduled, minted
+/// and withheld since the mainnet switch.
+pub(crate) async fn emission_series(
+    node: NodeHandle,
+    index: SharedIndex,
+) -> Result<Json<Value>, super::ApiError> {
+    let report = tokio::task::spawn_blocking(move || current(&index, &node))
+        .await
+        .map_err(super::internal)?
+        .map_err(super::internal)?;
+    Ok(Json(report.json["series"].clone()))
 }
 
 #[cfg(test)]

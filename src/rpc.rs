@@ -115,6 +115,18 @@ pub fn router_with(node: NodeHandle, options: &RpcOptions, index: SharedIndex) -
         .route("/explorer/bond/{id}", get(crate::explorer::bond))
         .route("/explorer/burn", get(crate::explorer::burn::burn))
         .route("/explorer/search/{q}", get(crate::explorer::search))
+        .route("/explorer/events", get(crate::explorer::events))
+        .route(
+            "/explorer/chart/difficulty",
+            get(crate::explorer::chart_difficulty),
+        )
+        .route(
+            "/explorer/chart/emission",
+            get(crate::explorer::chart_emission),
+        )
+        .route("/explorer/anchors", get(crate::explorer::anchors))
+        .route("/explorer/relay", get(crate::explorer::explorer_relay))
+        .route("/explorer/api", get(crate::explorer::api))
         .layer(axum::Extension(index))
         .layer(axum::middleware::from_fn_with_state(
             std::sync::Arc::new(options.allowed_hosts.clone()),
@@ -149,6 +161,18 @@ pub fn explorer_router(node: NodeHandle, index: SharedIndex) -> Router {
         .route("/explorer/bond/{id}", get(crate::explorer::bond))
         .route("/explorer/burn", get(crate::explorer::burn::burn))
         .route("/explorer/search/{q}", get(crate::explorer::search))
+        .route("/explorer/events", get(crate::explorer::events))
+        .route(
+            "/explorer/chart/difficulty",
+            get(crate::explorer::chart_difficulty),
+        )
+        .route(
+            "/explorer/chart/emission",
+            get(crate::explorer::chart_emission),
+        )
+        .route("/explorer/anchors", get(crate::explorer::anchors))
+        .route("/explorer/relay", get(crate::explorer::explorer_relay))
+        .route("/explorer/api", get(crate::explorer::api))
         .layer(axum::Extension(index))
         .with_state(node)
 }
