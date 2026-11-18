@@ -1718,10 +1718,11 @@ function bondBurn(burn) {
 // ---------- api docs -------------------------------------------------------
 async function apiPage() {
   const r = await get("/explorer/api");
+  const endpoints = r.endpoints || {};
   view.replaceChildren(
     h("div", { class: "title" }, h("h1", null, "API"), h("span", { class: "dim" }, "explorer JSON endpoints")),
     section("Endpoints", null,
-      dl(Object.entries(r).map(([path, desc]) => [
+      dl(Object.entries(endpoints).map(([path, desc]) => [
         h("a", { href: path }, path),
         h("span", null, String(desc))
       ]))),
