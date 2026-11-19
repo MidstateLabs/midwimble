@@ -503,8 +503,10 @@ function activityBubbles(blocks) {
 // Bonds as packed bubbles: area is blocks signed in the window, colour is
 // headroom against the per-bond cap. A bond at its cap is the shape of the
 // whole rule in one picture.
+const BUBBLE_MAX = 40;
 function bondBubbles(bonds, cap, size) {
-  const items = bonds.slice().sort((a, b) => (b.window_signed || 0) - (a.window_signed || 0));
+  const ranked = bonds.slice().sort((a, b) => (b.window_signed || 0) - (a.window_signed || 0));
+  const items = ranked.slice(0, BUBBLE_MAX);
   if (!items.length) return h("div", { class: "empty" }, "no bonds registered");
   const W = 900, pad = 14, top = 16, rowH = 100;
   const maxV = Math.max(1, ...items.map(b => b.window_signed || 0));
@@ -538,7 +540,8 @@ function bondBubbles(bonds, cap, size) {
     h("span", null, h("i", { style: "background:" + themeColors().out }), "under cap"),
     h("span", null, h("i", { style: "background:" + themeColors().fire }), "over cap"),
     h("span", null, h("i", { style: "background:" + themeColors().muted }), "not eligible"),
-    h("span", null, "area \u00b7 blocks signed in the last " + num(size || 1440) + " \u00b7 cap " + num(cap))));
+    h("span", null, "area \u00b7 blocks signed in the last " + num(size || 1440) + " \u00b7 cap " + num(cap)),
+    ranked.length > items.length ? h("span", null, "the " + items.length + " busiest of " + ranked.length) : null));
 }
 
 // Minted vs withheld as one ring: the missing wedge is the burn.
@@ -1284,7 +1287,7 @@ function bondTable(r, limit) {
   return h("div", null,
     table(["bond", "value", "eligible", "signed / cap " + num(w.cap), "total blocks"], list, [1, 4]),
     h("div", { class: "note" },
-      "Cap = \u2308" + num(w.size) + " \u00f7 " + num(w.cap_among === "in_use" ? w.in_use : w.eligible) + " " +
+      "Cap = \u2308" + num(w.size) + " \u00f7 " + num(w.cap_among === "in_use" ? (w.in_use ?? w.eligible) : w.eligible) + " " +
       (w.cap_among === "in_use" ? "bonds in use\u2309" : "eligible bonds\u2309") + " = " + num(w.cap) + " blocks per window \u00b7 " +
       h("a", { href: "#/bonds" }, "how it works \u2192")));
 }
@@ -1366,7 +1369,7 @@ function burnBanner(r) {
 // The rule, as three cards instead of five paragraphs.
 function burnRule(r) {
   const w = r.window;
-  const divisor = w.cap_among === "in_use" ? w.in_use : w.eligible;
+  const divisor = w.cap_among === "in_use" ? (w.in_use ?? w.eligible) : w.eligible;
   const card = (title, body, accent) => h("div", { class: "kpi" + (accent ? " hero-kpi" : "") },
     h("div", { class: "label" }, title), h("div", { class: "sub", style: "font-size:12.5px;line-height:1.6;margin-top:6px" }, body));
   return h("div", { class: "kpis", style: "padding:14px 18px" },
