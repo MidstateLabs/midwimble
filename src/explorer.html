@@ -14,7 +14,7 @@
     --text: #f2f1f6; --muted: #938fa6;
     --green: #00ff41; --purple: #8b5cf6; --lilac: #a78bfa; --amber: #f5c451; --fire: #ff8a3d;
     --line: rgba(167, 139, 250, .16); --line2: rgba(167, 139, 250, .30);
-    --max: 1240px; --r: 14px;
+    --max: 1280px; --r: 8px;
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --sans: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
   }
@@ -23,13 +23,13 @@
     --text: #16162a; --muted: #6b6899;
     --green: #059669; --purple: #7c3aed; --lilac: #6d28d9; --amber: #b45309; --fire: #c2410c;
     --line: rgba(124, 58, 237, .14); --line2: rgba(124, 58, 237, .28);
-    --max: 1240px; --r: 14px;
+    --max: 1280px; --r: 8px;
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --sans: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
   }
   * { box-sizing: border-box; }
   html { scrollbar-color: var(--line2) transparent; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 400 15px/1.55 var(--sans);
+  body { margin: 0; background: var(--bg); color: var(--text); font: 400 14px/1.5 var(--sans);
     transition: background .2s, color .2s; -webkit-font-smoothing: antialiased; }
   a { color: var(--lilac); text-decoration: none; }
   a:hover { text-decoration: underline; }
@@ -78,11 +78,16 @@
   main { padding: 20px 18px 40px; display: grid; gap: 14px; max-width: var(--max); margin: 0 auto; }
   section { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
     overflow: hidden; }
-  section > h2 { margin: 0; padding: 11px 18px; font: 700 10.5px var(--sans); letter-spacing: .2em;
+  section > h2 { margin: 0; padding: 9px 16px; font: 700 10px var(--sans); letter-spacing: .12em;
     text-transform: uppercase; color: var(--lilac); border-bottom: 1px solid var(--line);
     display: flex; justify-content: space-between; gap: 12px; align-items: center; }
   h2 .aside { color: var(--muted); letter-spacing: .04em; text-transform: none; font-weight: 500; font-size: 12px; }
   h2 .aside a { color: var(--lilac); }
+  .crumb { display: flex; gap: 6px; align-items: center; padding: 2px 2px 4px;
+    font: 650 10.5px var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .crumb a { color: var(--muted); }
+  .crumb a:hover { color: var(--text); text-decoration: none; }
+  .crumb .csep { opacity: .45; }
   .title { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; padding: 2px 2px 0; }
   .title h1 { margin: 0; font: 650 21px var(--sans); letter-spacing: -.01em; }
   .title .dim { font-size: 13px; }
@@ -93,7 +98,21 @@
 
   /* ---------- kpis ---------- */
   .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr)); gap: 10px; }
-  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 13px 15px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 11px 14px;
+    transition: border-color .15s; }
+  .kpi:hover { border-color: var(--line2); }
+  /* one flat strip instead of floating cards: the shape every block explorer uses */
+  .kpis.flat { gap: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+    overflow: hidden; }
+  .kpis.flat .kpi { border: 0; border-right: 1px solid var(--line); border-radius: 0; background: none; }
+  .kpis.flat .kpi:last-child { border-right: 0; }
+  .kpis.flat .kpi:hover { background: var(--panel2); }
+  @media (max-width: 760px) {
+    .kpis.flat { grid-template-columns: 1fr 1fr; }
+    .kpis.flat .kpi { border-bottom: 1px solid var(--line); }
+    .kpis.flat .kpi:nth-child(2n) { border-right: 0; }
+    .kpis.flat .kpi:nth-last-child(-n+2) { border-bottom: 0; }
+  }
   .kpi .label { color: var(--muted); font: 650 10px var(--sans); letter-spacing: .12em; text-transform: uppercase; }
   .kpi .value { font: 650 20px var(--mono); letter-spacing: -.03em; margin-top: 3px; overflow-wrap: normal; white-space: nowrap; }
   .kpi .value.sm { font-size: 15px; letter-spacing: -.01em; }
@@ -101,11 +120,33 @@
   .kpi.hero-kpi { background: linear-gradient(160deg, var(--panel3), var(--panel)); border-color: var(--line2); }
   .kpi .value .unit { color: var(--muted); font-size: 12px; letter-spacing: 0; }
 
+  /* ---------- dashboard: content column plus a rail ---------- */
+  .dash { display: grid; grid-template-columns: minmax(0, 1.78fr) minmax(272px, 1fr); gap: 14px; align-items: start; }
+  .dash > * { min-width: 0; }
+  .rail { display: grid; gap: 14px; }
+  @media (max-width: 980px) { .dash { grid-template-columns: 1fr; } }
+
+  /* compact key/value rows: the rail's default shape */
+  .rows { padding: 2px 0 4px; }
+  .rows .row { display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
+    padding: 6px 16px; border-bottom: 1px solid var(--line); }
+  .rows .row:last-child { border-bottom: 0; }
+  .rows .rk { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+  .rows .rv { font: 500 12.5px var(--mono); text-align: right; white-space: nowrap; }
+  .rows .rv.hot { color: var(--amber); }
+  /* the dashboard table is narrower than a full-width one: tighter cells */
+  .dash table th, .dash table td { padding-left: 11px; padding-right: 11px; }
+  .dash table th:first-child, .dash table td:first-child { padding-left: 16px; }
+  .dash table th:last-child, .dash table td:last-child { padding-right: 16px; }
+
   /* ---------- generic cell grid (detail pages) ---------- */
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); }
+  /* Eight cells want an even 4x2, not six-then-two with a hole beside it. */
+  .grid.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (min-width: 900px) { .grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
   .cell { padding: 13px 18px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
   .k { color: var(--muted); font: 650 10px var(--sans); letter-spacing: .14em; text-transform: uppercase; }
-  .cell .v { font-size: 17px; margin-top: 2px; word-break: break-all; letter-spacing: -.02em; }
+  .cell .v { font-size: 17px; margin-top: 2px; overflow-wrap: anywhere; letter-spacing: -.02em; }
   .cell .v.small { font-size: 13px; letter-spacing: 0; }
   .cell .sub { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
 
@@ -127,13 +168,18 @@
   /* ---------- tables ---------- */
   .scroll { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; }
-  th { text-align: left; padding: 8px 18px; color: var(--muted); font: 650 10px var(--sans);
-    letter-spacing: .13em; text-transform: uppercase; border-bottom: 1px solid var(--line); white-space: nowrap; }
-  td { padding: 8px 18px; border-bottom: 1px solid var(--line); white-space: nowrap; font-size: 13.5px; }
+  th { text-align: left; padding: 7px 16px; color: var(--muted); font: 650 9.5px var(--sans);
+    letter-spacing: .1em; text-transform: uppercase; border-bottom: 1px solid var(--line); white-space: nowrap;
+    background: var(--panel); }
+  td { padding: 7px 16px; border-bottom: 1px solid var(--line); white-space: nowrap; font-size: 13px;
+    font-variant-numeric: tabular-nums; }
   tr:last-child td { border-bottom: 0; }
   tbody tr:hover { background: var(--panel2); }
+  tbody tr:hover td:first-child { box-shadow: inset 2px 0 0 var(--lilac); }
+  tbody tr.click { cursor: pointer; }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
   .dim { color: var(--muted); }
+  .mono { font-family: var(--mono); }
 
   /* ---------- tags ---------- */
   .tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font: 600 10.5px var(--mono);
@@ -156,19 +202,9 @@
   .diagram svg { width: 100%; display: block; }
   .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); font-size: 11px; letter-spacing: .03em; margin-top: 9px; }
   .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: 0; }
-  .viz { padding: 6px 18px 14px; }
+  .viz { padding: 6px 16px 12px; }
+  .viz svg { width: 100%; display: block; }
 
-  /* ---------- block train ---------- */
-  .train { display: flex; gap: 8px; overflow-x: auto; padding: 12px 18px 14px; scrollbar-width: thin; }
-  .train a { flex: 0 0 132px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px;
-    padding: 9px 11px; color: var(--text); transition: transform .16s, border-color .16s; }
-  .train a:hover { transform: translateY(-2px); border-color: var(--lilac); text-decoration: none; }
-  .train a.fresh { animation: slidein .5s ease-out; border-color: color-mix(in srgb, var(--green) 55%, transparent); }
-  @keyframes slidein { from { opacity: 0; transform: translateX(-22px); } }
-  .train .hh { font: 650 15px var(--mono); color: var(--lilac); }
-  .train .sub { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
-  .train a.light { border-style: dashed; border-color: color-mix(in srgb, var(--amber) 45%, transparent); }
-  .train a.light .hh, .train .sub.light { color: var(--amber); }
   svg a { cursor: pointer; }
   svg a:hover rect, svg a:hover circle, svg a:hover path { opacity: 1; }
 
@@ -220,20 +256,6 @@
   .txrow summary:hover { background: var(--panel2); }
   .txrow .body { padding: 2px 18px 12px; }
 
-  /* ---------- hero ---------- */
-  .hero { padding: 34px 18px 24px; text-align: center; }
-  .hero h1 { font: 700 27px var(--sans); margin: 0 0 4px; letter-spacing: -.02em; }
-  .hero p { color: var(--muted); margin: 0 0 18px; font-size: 13.5px; }
-  .hero form { max-width: 620px; margin: 0 auto; display: flex; min-width: 0; }
-  .hero form input { flex: 1; background: var(--panel); color: var(--text); border: 1px solid var(--line2);
-    border-radius: 11px 0 0 11px; padding: 13px 16px; font: 500 14px var(--sans); outline: none; }
-  .hero form input::placeholder { color: var(--muted); opacity: .85; }
-  .hero form input:focus { border-color: var(--lilac); }
-  .hero form button { background: var(--purple); color: #fff; border: 0; border-radius: 0 11px 11px 0;
-    padding: 0 20px; font: 600 14px var(--sans); cursor: pointer; }
-  .hero form button:hover { filter: brightness(1.08); }
-  .hero .quick { margin-top: 12px; font-size: 11.5px; color: var(--muted); display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-
   /* ---------- tabs ---------- */
   .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); padding: 0 14px; overflow-x: auto; scrollbar-width: none; }
   .tabs::-webkit-scrollbar { display: none; }
@@ -245,8 +267,6 @@
   footer { padding: 16px 18px 30px; color: var(--muted); font-size: 10.5px; text-align: center; letter-spacing: .04em; }
   footer a { color: var(--muted); }
   @media (max-width: 640px) {
-    .hero { padding: 22px 12px 18px; }
-    .hero h1 { font-size: 22px; }
     dl { grid-template-columns: 1fr; }
     dt { border-bottom: 0; padding-bottom: 0; }
     .tag.fire .word { display: none; }
@@ -268,7 +288,7 @@
     </nav>
     <button id="themeToggle" class="theme-toggle" title="Switch theme">&#9774;</button>
     <form id="search" autocomplete="off">
-      <input id="q" placeholder="height, block hash, output commitment, kernel or bond id" spellcheck="false">
+      <input id="q" placeholder="height, hash, commitment or bond" spellcheck="false">
       <button>find</button>
     </form>
   </div>
@@ -361,7 +381,7 @@ const tag = (cls, text) => h("span", { class: "tag " + cls }, text);
 const section = (title, aside, ...body) => h("section", null,
   h("h2", null, title, aside ? h("span", { class: "aside" }, aside) : null), ...body);
 function cell(k, v, small) { return h("div", { class: "cell" }, h("div", { class: "k" }, k), h("div", { class: "v" + (small ? " small" : "") }, v)); }
-function stat(k, v, sub) { const c = cell(k, v); if (sub) c.appendChild(h("div", { class: "sub" }, sub)); return c; }
+function stat(k, v, sub, small) { const c = cell(k, v, small); if (sub) c.appendChild(h("div", { class: "sub" }, sub)); return c; }
 // A KPI tile: label, one big figure, one line of context.
 function kpi(label, value, sub, opts = {}) {
   return h("div", { class: "kpi" + (opts.accent ? " hero-kpi" : "") },
@@ -385,10 +405,14 @@ function spark(inp, out, kern, max, w = 200) {
   bar.title = inp + " in \u00b7 " + out + " out \u00b7 " + kern + " kernel" + (kern === 1 ? "" : "s");
   return bar;
 }
+const crumb = (...parts) => h("div", { class: "crumb" },
+  parts.map((p, i) => [i ? h("span", { class: "csep" }, "/") : null, p]));
 const dl = rows => h("dl", null, rows.filter(Boolean).map(([k, v]) => [h("dt", null, k), h("dd", null, v)]));
-const table = (heads, rows, numeric = []) => h("div", { class: "scroll" }, h("table", null,
+const table = (heads, rows, numeric = [], hrefs = null) => h("div", { class: "scroll" }, h("table", null,
   h("thead", null, h("tr", null, heads.map((x, i) => h("th", { class: numeric.includes(i) ? "num" : null }, x)))),
-  h("tbody", null, rows.map(r => h("tr", null, r.map((c, i) => h("td", { class: numeric.includes(i) ? "num" : null }, c)))))));
+  h("tbody", null, rows.map((r, ri) => h("tr",
+    hrefs && hrefs[ri] ? { class: "click", onclick: () => { location.hash = hrefs[ri]; } } : null,
+    r.map((c, i) => h("td", { class: numeric.includes(i) ? "num" : null }, c)))))));
 
 async function get(path) {
   const r = await fetch(path);
@@ -418,26 +442,6 @@ function svgLink(href, kid, title) {
   a.appendChild(kid);
   return a;
 }
-function intervalChart(values, target, href) {
-  const W = 600, H = 120, max = Math.max(target * 3, ...values, 1);
-  const bw = W / Math.max(values.length, 1);
-  const s = svg("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none" });
-  values.forEach((v, i) => {
-    const bh = Math.max(1, (Math.min(v, max) / max) * (H - 4));
-    const r = svg("rect", { x: i * bw + 1, y: H - bh, width: Math.max(1, bw - 2), height: bh,
-      fill: v > target * 2.5 ? themeColors().amber : themeColors().in, opacity: .85 });
-    s.appendChild(href ? svgLink(href(i), r, v + "s") : (r.appendChild(svg("title")).textContent = v + "s", r));
-  });
-  const y = H - (target / max) * (H - 4);
-  s.appendChild(svg("line", { x1: 0, x2: W, y1: y, y2: y, stroke: themeColors().out, "stroke-dasharray": "4 4", "stroke-width": 1 }));
-  return s;
-}
-function lineChart(values, colour) {
-  const W = 600, H = 120, lo = Math.min(...values), hi = Math.max(...values), span = (hi - lo) || 1;
-  const pts = values.map((v, i) => `${(i / Math.max(values.length - 1, 1)) * W},${H - 6 - ((v - lo) / span) * (H - 12)}`);
-  return svg("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none" },
-    svg("polyline", { points: pts.join(" "), fill: "none", stroke: colour || themeColors().kern, "stroke-width": 2, "vector-effect": "non-scaling-stroke" }));
-}
 function barChart(values, { colour = null, log = false, label = String, href = null } = {}) {
   const W = 600, H = 120, f = log ? (v => Math.log10(1 + v)) : (v => v);
   const max = Math.max(...values.map(f), 1e-9), bw = W / Math.max(values.length, 1);
@@ -466,39 +470,27 @@ function shareChart(values, colour, label = String) {
   return s;
 }
 
-// Blocks as bubbles: time across, transactions up, area is bytes. The shape
-// of a chain's day is readable at a glance, which a table cannot do.
-function activityBubbles(blocks) {
-  const W = 900, H = 240, pad = 26;
-  const pts = blocks.slice().sort((a, b) => a.height - b.height);
-  if (!pts.length) return h("div", { class: "empty" }, "no blocks yet");
-  const kernMax = Math.max(1, ...pts.map(b => b.kernels || 0));
-  const sizeMax = Math.max(1, ...pts.map(b => b.size || 1));
-  const x = i => pad + (i / Math.max(pts.length - 1, 1)) * (W - pad * 2);
-  const y = k => H - pad - (k / kernMax) * (H - pad * 2);
-  const s = svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
-  // gridlines at 0, half, full transactions
-  [0, .5, 1].forEach(f => {
-    const yy = H - pad - f * (H - pad * 2);
-    s.appendChild(svg("line", { x1: pad, x2: W - pad, y1: yy, y2: yy, stroke: themeColors().muted, "stroke-width": .5, opacity: .18 }));
-    const t = svg("text", { x: pad - 6, y: yy + 3, fill: themeColors().muted, "font-size": 9, "text-anchor": "end" });
-    t.textContent = Math.round(kernMax * f);
-    s.appendChild(t);
+
+
+// A slim ribbon: one bar per block, height by transactions. The same pulse as
+// the block table, without spending a screenful to say it.
+function activityRibbon(blocks) {
+  const b = blocks.slice().sort((p, q) => p.height - q.height);
+  if (!b.length) return h("div", { class: "empty" }, "no blocks yet");
+  const W = 1200, H = 46, n = b.length, bw = W / n;
+  const max = Math.max(1, ...b.map(x => x.kernels || 0));
+  const s = svg("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none", style: "height:46px" });
+  b.forEach((x, i) => {
+    const k = x.kernels || 0;
+    const bh = Math.max(2, (k / max) * (H - 6));
+    const a = svgLink("#/block/" + x.height, svg("rect", {
+      x: i * bw, y: H - bh, width: Math.max(bw - 0.7, 0.5), height: bh, rx: 1,
+      fill: x.full_weight === false ? themeColors().amber : themeColors().out,
+      opacity: (0.35 + 0.65 * (k / max)).toFixed(2),
+    }), "block " + x.height + " \u00b7 " + k + " tx \u00b7 " + utc(x.timestamp));
+    s.appendChild(a);
   });
-  pts.forEach((b, i) => {
-    const r = 3 + Math.sqrt((b.size || 1) / sizeMax) * 13;
-    const c = svg("circle", { cx: x(i), cy: y(b.kernels || 0), r, fill: b.merged ? themeColors().in : themeColors().out,
-      opacity: b.full_weight === false ? .28 : .55, stroke: b.full_weight === false ? themeColors().amber : "none", "stroke-width": b.full_weight === false ? 1 : 0 });
-    s.appendChild(svgLink("#/block/" + b.height, c,
-      "block " + b.height + "\n" + (b.kernels || 0) + " transactions \u00b7 " + num(b.size) + " B\n" + utc(b.timestamp) +
-      (b.merged ? "\nmerge-mined" : "") + (b.full_weight === false ? "\nover cap: adds 1/1024 of its work" : "")));
-  });
-  return h("div", { class: "viz" }, s, h("div", { class: "legend" },
-    h("span", null, h("i", { style: "background:" + themeColors().out }), "native"),
-    h("span", null, h("i", { style: "background:" + themeColors().in }), "merge-mined"),
-    h("span", null, "bubble area \u00b7 block bytes"),
-    h("span", null, "height \u00b7 transactions"),
-    h("span", null, h("i", { style: "background:transparent;border:1px solid " + themeColors().amber }), "over cap")));
+  return s;
 }
 
 // Minted vs withheld as one ring: the missing wedge is the burn.
@@ -815,36 +807,6 @@ function peerMap(n) {
     h("span", null, "addresses are shown without their host")));
 }
 
-// Who signed when, across the fork-choice window: one tick per block.
-function signerHeatmap(r) {
-  const w = r.window;
-  if (w.from == null || !r.bonds.length) return null;
-  const size = Math.max(1, w.size), W = 1000;
-  const rows = r.bonds.filter(b => (b.window_blocks || []).length)
-    .sort((a, b) => (b.window_signed || 0) - (a.window_signed || 0)).slice(0, 14);
-  if (!rows.length) return h("div", { class: "empty" }, "no bond has signed inside the window yet");
-  const grid = h("div", { class: "heat" },
-    h("div", { class: "hd" }, "bond"),
-    h("div", { class: "hd" }, "window \u00b7 " + num(w.from) + " \u2192 " + num(w.tip)),
-    h("div", { class: "hd", style: "text-align:right" }, "signed / cap"));
-  rows.forEach(b => {
-    const over = b.window_signed > w.cap;
-    const s = svg("svg", { viewBox: `0 0 ${W} 13`, preserveAspectRatio: "none" });
-    s.appendChild(svg("rect", { x: 0, y: 0, width: W, height: 13, rx: 2, fill: themeColors().faint.replace(".5", ".07") }));
-    (b.window_blocks || []).forEach(hh => {
-      const x = ((hh - w.from) / size) * W;
-      const t = svg("rect", { x: Math.max(0, Math.min(W - 2, x)), y: 1, width: 2, height: 11, fill: over ? themeColors().amber : COL().out, opacity: .85 });
-      s.appendChild(svgLink("#/block/" + hh, t, "block " + hh));
-    });
-    grid.appendChild(h("div", { class: "lab" }, link("bond", b.bond_id, short(b.bond_id, 12))));
-    grid.appendChild(s);
-    grid.appendChild(h("div", { class: "cnt", style: over ? "color: var(--amber)" : null }, num(b.window_signed) + " / " + num(w.cap)));
-  });
-  return h("div", null, grid, h("div", { class: "note" },
-    "One tick per block signed" + (rows.length < r.bonds.filter(b => (b.window_blocks || []).length).length ? ", top " + rows.length + " bonds by blocks signed" : "") + ". " + (w.cap_among === "in_use"
-      ? "Amber is past its cap: its next block would be invalid."
-      : "Amber is over cap: those blocks add 1/1024 of their work.")));
-}
 
 // ---------- shared block table --------------------------------------------
 const LIGHT_NOTE = "over cap: adds 1/1024 of its work to fork choice, so a full-weight block on the block below it would orphan it";
@@ -853,91 +815,37 @@ function blockRows(blocks) {
   return blocks.map(b => [
     link("block", b.height, num(b.height)),
     h("span", { class: "dim", title: utc(b.timestamp) }, ago(b.timestamp)),
-    b.interval != null ? dur(b.interval) : h("span", { class: "dim" }, "\u2014"),
-    spark(b.inputs, b.outputs, b.kernels),
-    h("span", { class: "dim" }, `${b.inputs} / ${b.outputs} / ${b.kernels}`),
-    b.fees ? coins(b.fees) : h("span", { class: "dim" }, "0"),
-    b.miner ? link("bond", b.miner) : h("span", { class: "dim" }, "unsigned"),
+    b.kernels != null ? num(b.kernels) : h("span", { class: "dim" }, "\u2014"),
+    spark(b.inputs, b.outputs, b.kernels, null, 88),
+    b.fees ? coinShort(b.fees) : h("span", { class: "dim" }, "0"),
+    b.miner ? link("bond", b.miner, short(b.miner, 10)) : h("span", { class: "dim" }, "unsigned"),
     h("span", null,
       tag(b.merged ? "merged" : "native", b.merged ? "merged" : "native"),
       b.full_weight === false ? overCap() : null,
       b.registrations ? tag("ok", "+" + b.registrations) : null),
   ]);
 }
-const BLOCK_HEADS = ["height", "age", "interval", "shape", "in / out / kern", "fees", "signed by", "work"];
-const blockTable = blocks => blocks.length ? table(BLOCK_HEADS, blockRows(blocks), [4, 5]) : h("div", { class: "empty" }, "no blocks yet");
+const BLOCK_HEADS = ["height", "age", "txns", "shape", "fees", "signed by", "work"];
+const blockTable = blocks => blocks.length ? table(BLOCK_HEADS, blockRows(blocks), [2, 4]) : h("div", { class: "empty" }, "no blocks yet");
 
-// The newest blocks as a strip you can click straight into. The strip is kept
-// across refreshes, not rebuilt, so scroll position and hovers survive.
-let trainEl = null, trainTop = null, trainTopHash = null;
-const TRAIN_CARDS = 14;
-function blockTrain(blocks) {
-  const keep = trainEl ? trainEl.scrollLeft : 0;
-  let rebuilt = false;
-  const card = b => {
-    const age = h("div", { class: "sub" }, ago(b.timestamp));
-    const light = b.full_weight === false;
-    const el = h("a", { href: "#/block/" + b.height, class: light ? "light" : null, title: light ? LIGHT_NOTE : null },
-      h("div", { class: "hh" }, num(b.height)),
-      age,
-      h("div", { class: "sub" }, (b.kernels || 0) + " tx \u00b7 " + num(b.size) + " B"),
-      light ? h("div", { class: "sub light" }, "over cap") : h("div", { class: "sub" }, b.merged ? "merge-mined" : "native"));
-    el._ts = b.timestamp; el._age = age;
-    return el;
-  };
-  const rebuild = () => {
-    trainEl = h("div", { class: "train" });
-    blocks.slice(0, TRAIN_CARDS).forEach(b => trainEl.appendChild(card(b)));
-    rebuilt = true;
-  };
-  if (!blocks.length) return trainEl || (trainEl = h("div", { class: "train" }));
-  const top = blocks[0];
-  if (!trainEl || trainTop == null) rebuild();
-  else if (top.height < trainTop || (top.height === trainTop && top.hash !== trainTopHash)) rebuild();
-  else {
-    blocks.filter(b => b.height > trainTop).sort((a, b) => a.height - b.height).forEach(b => {
-      const el = card(b);
-      el.classList.add("fresh");
-      trainEl.insertBefore(el, trainEl.firstChild);
-      setTimeout(() => el.classList.remove("fresh"), 600);
-    });
-    while (trainEl.children.length > TRAIN_CARDS) trainEl.removeChild(trainEl.lastChild);
-  }
-  for (const el of trainEl.children) if (el._age) el._age.textContent = ago(el._ts);
-  trainTop = top.height; trainTopHash = top.hash;
-  const scroll = rebuilt ? 0 : keep;
-  if (scroll) { const el = trainEl; requestAnimationFrame(() => { el.scrollLeft = scroll; }); }
-  return trainEl;
-}
 // ---------- pages ----------------------------------------------------------
-// Hero search: the way in for anyone who does not know the URL scheme.
-let heroDraft = "";
-function heroSearch() {
-  const input = h("input", {
-    placeholder: "Height, block hash, output, kernel or bond id\u2026",
-    spellcheck: "false", autocomplete: "off", value: heroDraft, "aria-label": "search the chain",
-  });
-  input.addEventListener("input", () => { heroDraft = input.value; });
-  const form = h("form", { onsubmit: async ev => {
-    ev.preventDefault();
-    const q = input.value.trim();
-    if (!q) return;
-    try {
-      const r = await get("/explorer/search/" + encodeURIComponent(q));
-      input.value = ""; heroDraft = "";
-      location.hash = "#/" + r.kind + "/" + r.id;
-    } catch (e) { flash(e.message); }
-  } }, input, h("button", { type: "submit" }, "Search"));
-  return h("div", { class: "hero" },
-    h("h1", null, "Midwimble Explorer"),
-    h("p", null, "Blocks, outputs, kernels and bonds on the MimbleWimble privacy chain"),
-    form,
-    h("div", { class: "quick" },
-      h("a", { href: "#/blocks" }, "latest blocks"),
-      h("a", { href: "#/bonds" }, "mining bonds"),
-      h("a", { href: "#/burn" }, "burn tracker"),
-      h("a", { href: "#/privacy" }, "privacy metrics"),
-      h("a", { href: "#/api" }, "json api")));
+// Newest kernels, read from the tip blocks' details. Kept to a handful: this is
+// a rail, and the mempool page is where the full list belongs.
+async function kernelsPanel(blocks) {
+  const tops = blocks.slice(0, 4);
+  if (!tops.length) return null;
+  const details = await Promise.all(tops.map(b => blockAt(b.height).catch(() => null)));
+  const items = [];
+  for (const d of details) {
+    if (!d || !d.kernels) continue;
+    for (const k of d.kernels) items.push({ k, d });
+  }
+  if (!items.length) return null;
+  return section("Latest kernels", h("a", { href: "#/mempool" }, "mempool \u2192"),
+    h("div", { class: "rows" }, items.slice(0, 9).map(({ k, d }) =>
+      h("div", { class: "row" },
+        h("span", { class: "rk" }, link("kernel", k.excess, short(k.excess, 14))),
+        h("span", { class: "rv" }, h("span", { class: "dim" }, num(d.height)), " \u00b7 ", coinShort(k.fee || 0))))));
 }
 
 async function overview() {
@@ -958,43 +866,48 @@ async function overview() {
   supplyTile.appendChild(meter(supplyPct));
 
   // "How long until I find a block at my hashrate" is the question a new
-  // miner actually has, so the tile carries the calculator.
-  const calcTile = (() => {
+  // miner actually has, so the rail carries the calculator inline.
+  const calcRow = (() => {
     const input = h("input", { type: "number", min: "1", value: "1000000",
-      style: "width:92px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:2px 6px;font:500 11px var(--mono);text-align:right" });
+      style: "width:78px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:1px 4px;font:500 11px var(--mono);text-align:right" });
     const wait = hr => {
       const secs = Math.round(Math.pow(2, bits) / (hr || 1));
       return bits ? (secs < 1 ? "<1s" : dur(secs)) : "\u2014";
     };
     const out = h("span", { style: "color:var(--amber)" }, wait(1e6));
     input.addEventListener("input", () => { out.textContent = wait(Number(input.value)); });
-    return kpi("expected time", out, h("span", null, "at ", input, " att/s"));
+    return h("div", { class: "row" },
+      h("span", { class: "rk" }, "expected time"),
+      h("span", { class: "rv" }, out, " \u00b7 ", input, " att/s"));
   })();
 
-  const newTile = kpi("new blocks", "0", "since this page loaded");
-  newBlocksEl = newTile.querySelector(".value");
-
-  const kpis = h("div", { class: "kpis" },
+  const kpis = h("div", { class: "kpis flat" },
     kpi("height", num(s.height), "chain tip"),
     kpi("last block", ago(s.timestamp), utcShort(s.timestamp)),
     supplyTile,
-    kpi("block reward", coinShort(s.block_reward), "per block", { accent: true, small: true }),
-    kpi("era \u00b7 next halving", `${s.era} \u00b7 ${s.next_halving_height ? num(s.next_halving_height) : "none"}`, s.next_halving_height ? "at that height" : "no halving left", { small: true }),
-    kpi("difficulty", bits.toFixed(2) + " bits", "expected attempts a block"),
-    kpi("network rate", hashrate ? rate(hashrate) : "\u2014", "over the last " + intervals.length + " blocks", { small: true }),
-    calcTile,
-    kpi("avg block time", avg ? dur(Math.round(avg)) : "\u2014", avg ? "last " + intervals.length + " blocks" : null),
-    kpi("mempool", s.mempool_count + " tx", num(s.mempool_weight) + " weight waiting", { small: true }),
-    kpi("utxos / kernels", num(s.utxos) + " / " + num(s.kernels), "unspent outputs \u00b7 proofs", { small: true }),
-    kpi("peers", String(s.peers.length), "connected nodes"),
-    newTile,
-    kpi("this node", s.mining ? "mining" : "not mining", s.syncing ? "syncing" : "in sync", { small: true }));
+    kpi("block reward", coinShort(s.block_reward), "era " + s.era + (s.next_halving_height ? " \u00b7 next " + num(s.next_halving_height) : ""), { small: true }),
+    kpi("difficulty", bits.toFixed(2) + " bits", "expected attempts a block", { small: true }));
 
-  const activity = section("Chain activity", "last " + blocks.length + " blocks \u00b7 refreshes every 10s",
-    activityBubbles(blocks),
-    h("div", { class: "charts" },
-      h("div", { class: "chart" }, h("div", { class: "k" }, "block interval \u00b7 dashed = 60s"), intervalChart(intervals, 60, i => "#/block/" + timed[i].height)),
-      h("div", { class: "chart" }, h("div", { class: "k" }, "difficulty \u00b7 bits"), lineChart(blocks.map(b => b.difficulty_bits).reverse()))));
+  // Everything else lives in the rail, in the dense key/value shape a block
+  // explorer reader expects, so the fold belongs to the block table.
+  const row = (k, v, cls) => h("div", { class: "row" },
+    h("span", { class: "rk" }, k), h("span", { class: "rv" + (cls ? " " + cls : "") }, v));
+  const newBlockRow = row("new blocks", "0");
+  newBlocksEl = newBlockRow.querySelector(".rv");
+  const networkRail = section("Network", null, h("div", { class: "rows" },
+    row("network rate", hashrate ? rate(hashrate) : "\u2014"),
+    row("avg block time", avg ? dur(Math.round(avg)) : "\u2014"),
+    row("mempool", num(s.mempool_count) + " tx"),
+    row("mempool weight", num(s.mempool_weight)),
+    row("utxos", num(s.utxos)),
+    row("kernels", num(s.kernels)),
+    row("peers", String(s.peers.length)),
+    row("this node", (s.mining ? "mining" : "relay") + " \u00b7 " + (s.syncing ? "syncing" : "in sync")),
+    calcRow,
+    newBlockRow));
+
+  const activity = section("Chain activity", "last " + blocks.length + " blocks \u00b7 hover a bar",
+    h("div", { class: "viz" }, activityRibbon(blocks)));
 
   const run = s.orphaning;
   const runNote = run && h("div", { class: "note" },
@@ -1007,17 +920,26 @@ async function overview() {
         h("b", null, coinShort(burn.effective_max_supply)), " \u00b7 ", h("a", { href: "#/burn" }, "why \u2192"))
     : null;
 
-  const hero = heroSearch();
-  const wasTyping = !!(document.activeElement && document.activeElement.closest && document.activeElement.closest(".hero"));
-  view.replaceChildren(hero, kpis, burnStrip, activity,
-    section("Latest blocks", h("a", { href: "#/blocks" }, "all blocks \u2192"), blockTrain(blocks), blockTable(blocks.slice(0, 15)), runNote),
+  const rail = h("div", { class: "rail" }, networkRail);
+  const latest = section("Latest blocks", h("a", { href: "#/blocks" }, "all blocks \u2192"),
+    blockTable(blocks.slice(0, 20)), runNote);
+  view.replaceChildren(
+    h("div", { class: "title" },
+      h("h1", null, "Overview"),
+      h("span", { class: "dim" },
+        num(s.height) + " blocks \u00b7 " + (s.syncing ? "syncing" : "in sync") + (s.mining ? " \u00b7 mining" : ""))),
+    kpis, burnStrip, activity,
+    h("div", { class: "dash" }, latest, rail),
     section("Mining bonds", h("a", { href: "#/bonds" }, "details \u2192"),
-      quotaStrip(bonds.bonds, bonds.window.cap, bonds.window.size, 8), bondTable(bonds, 6)));
-  if (wasTyping) {
-    const el = hero.querySelector("input");
-    el.focus();
-    el.setSelectionRange(el.value.length, el.value.length);
-  }
+      h("div", { class: "kpis flat", style: "border:0;border-radius:0;border-bottom:1px solid var(--line)" },
+        kpi("registered", num(bonds.bonds.length), "bonds"),
+        kpi("in use", num(bonds.window.in_use ?? bonds.window.eligible), "of " + num(bonds.window.eligible) + " eligible", { accent: true }),
+        kpi("cap a bond", num(bonds.window.cap), "blocks per " + num(bonds.window.size)),
+        kpi("window", num(bonds.window.filled) + " / " + num(bonds.window.size), "blocks filled", { small: true })),
+      bondTable(bonds, 6)));
+  // The kernel rail needs per-block detail, so it fills in after the first
+  // paint rather than holding the whole page hostage.
+  kernelsPanel(blocks).then(sec => { if (sec && rail.isConnected) rail.appendChild(sec); }).catch(() => {});
   schedule(overview, 10000);
   if (!sseConn) {
     newSinceLoad = 0;
@@ -1070,7 +992,8 @@ function burialText(x) {
   const n = x.confirmations, f = x.full_weight_confirmations;
   const text = num(n) + " confirmation" + (n === 1 ? "" : "s");
   if (x.finalized) return text + " \u00b7 finalized";
-  return f == null ? text : text + " \u00b7 " + num(f) + " at full weight";
+  if (f == null) return text;
+  return f === n ? text + " \u00b7 all full weight" : text + " \u00b7 " + num(f) + " at full weight";
 }
 function burialNote(x) {
   if (x.finalized) return "below the finalized checkpoint: no reorganisation can replace it";
@@ -1092,7 +1015,7 @@ async function blockPage(m) {
     : overCap();
 
   const headerParts = [
-    section("Block", burialText(b), h("div", { class: "grid" },
+    section("Block", burialText(b), h("div", { class: "grid four" },
       stat("transactions", num(b.kernels.length)),
       stat("inputs", num(b.inputs.length)),
       stat("outputs", num(b.outputs.length), (b.output_groups || []).length + " range proof" + ((b.output_groups || []).length === 1 ? "" : "s")),
@@ -1100,7 +1023,7 @@ async function blockPage(m) {
       stat("size", num(b.size) + " B", num(b.weight || b.size) + " weight"),
       stat("difficulty", b.difficulty_bits.toFixed(2) + " bits", num(b.work) + " attempts", true),
       stat("fork choice", weight, b.full_weight === false ? "counts 1/1024 of its work" : "all its work counts"),
-      stat("settled", burialText(b), burialNote(b), true))),
+      stat("settled", burialText(b), burialNote(b), true, true))),
     section("Header", null, dl([
       ["hash", full(b.hash)],
       ["previous", b.height > 0 ? link("block", b.height - 1, b.prev_hash) : full(b.prev_hash)],
@@ -1164,9 +1087,10 @@ async function blockPage(m) {
     ...(cb ? [["coinbase", "Coinbase"]] : []),
     ["kernels", "Kernels"],
   ];
-  const title = h("div", { class: "title" }, h("h1", null, "Block " + num(b.height)),
+  const title = h("div", null, crumb(h("a", { href: "#/blocks" }, "blocks")),
+    h("div", { class: "title" }, h("h1", null, "Block " + num(b.height)),
     h("span", { class: "dim" }, utc(b.timestamp) + " \u00b7 " + ago(b.timestamp)),
-    h("div", { class: "pager" }, h("a", { class: "btn", href: "#/trace/" + b.height }, "graph"), prev, next));
+    h("div", { class: "pager" }, h("a", { class: "btn", href: "#/trace/" + b.height }, "graph"), prev, next)));
   const draw = () => {
     const active = tabs.some(([k]) => k === blockTab) ? blockTab : "overview";
     const bar = h("div", { class: "tabs", role: "tablist" }, tabs.map(([k, label]) =>
@@ -1187,6 +1111,7 @@ async function outputPage(m) {
   const status = o.unspent ? (immature ? tag("warn", "immature coinbase") : tag("ok", "unspent")) : tag("native", "spent");
   const life = o.unspent ? "unspent" : "spent";
   view.replaceChildren(
+    crumb(h("a", { href: "#/blocks" }, "blocks"), h("a", { href: "#/block/" + o.created_height }, "block " + num(o.created_height))),
     h("div", { class: "title" }, h("h1", null, (o.coinbase ? "Coinbase output " : "Output ") + short(o.commitment, 12)), status,
       h("div", { class: "pager" }, h("a", { class: "btn", href: "#/trace/" + o.commitment }, "trace lineage"))),
     section("Life", null, h("div", { class: "flow" },
@@ -1213,12 +1138,13 @@ async function outputPage(m) {
 async function kernelPage(m) {
   const k = await get("/explorer/kernel/" + m[1]);
   view.replaceChildren(
+    crumb(h("a", { href: "#/block/" + k.height }, "block " + num(k.height))),
     h("div", { class: "title" }, h("h1", null, (k.coinbase ? "Coinbase kernel " : "Kernel ") + short(k.excess, 12))),
     section("Kernel", burialText(k), h("div", { class: "grid" },
       stat("fee", coins(k.fee) + " MDW"),
       stat("min height", k.min_height ? num(k.min_height) : "\u2014"),
       stat("features", typeof k.features === "string" ? k.features : JSON.stringify(k.features), null, true),
-      stat("settled", burialText(k), burialNote(k), true)),
+      stat("settled", burialText(k), burialNote(k), true, true)),
       dl([
         ["block", link("block", k.height, "block " + num(k.height) + " \u00b7 " + short(k.hash, 16))],
         ["excess", full(k.excess)],
@@ -1253,21 +1179,18 @@ function bondTable(r, limit) {
 async function bondsPage() {
   const r = await get("/explorer/bonds");
   const w = r.window;
-  const heat = signerHeatmap(r);
   const totalSigned = r.bonds.reduce((a, b) => a + (b.window_signed || 0), 0);
   const over = r.bonds.filter(b => b.window_signed > w.cap).length;
   view.replaceChildren(
     h("div", { class: "title" }, h("h1", null, "Mining bonds"),
       h("span", { class: "dim" }, r.bonds.length + " registered \u00b7 window " + num(w.filled) + " / " + num(w.size) + " blocks")),
-    h("div", { class: "kpis" },
+    h("div", { class: "kpis flat" },
       kpi("registered", num(r.bonds.length), "bonds on this chain"),
       kpi("in use", num(w.in_use ?? w.eligible), num(w.eligible) + " eligible", { accent: true }),
       kpi("cap a bond", num(w.cap), "blocks per " + num(w.size), { accent: true }),
       kpi("cap share", pct(ratio(w.cap, w.size)), "of the window each"),
       kpi("signed", num(totalSigned), "blocks in the window"),
       kpi("over cap", num(over), over ? "cannot sign again yet" : "none", { small: true })),
-    section("Quota", "blocks signed against the cap \u00b7 top 16 by activity", quotaStrip(r.bonds, w.cap, w.size, 16)),
-    ...(heat ? [section("Who signed when", "cap " + num(w.cap) + " of " + num(w.size) + " blocks a bond", heat)] : []),
     section("Bonds", null, bondTable(r)));
 }
 
@@ -1275,6 +1198,7 @@ async function bondPage(m) {
   const b = await get("/explorer/bond/" + m[1]);
   const share = b.window_signed / Math.max(b.window.cap, 1);
   view.replaceChildren(
+    crumb(h("a", { href: "#/bonds" }, "bonds")),
     h("div", { class: "title" }, h("h1", null, "Bond " + short(b.bond_id, 12)),
       b.eligible_now ? tag("ok", "eligible") : tag("warn", b.value == null ? "not registered" : "not eligible")),
     section("Quota", "fork-choice window", h("div", { class: "grid" },
@@ -1293,37 +1217,6 @@ async function bondPage(m) {
     section("Recent blocks", b.recent_blocks.length ? "newest " + b.recent_blocks.length : null,
       b.recent_blocks.length ? h("div", { class: "empty" }, b.recent_blocks.map((x, i) => [i ? " \u00b7 " : null, link("block", x, num(x))])) : h("div", { class: "empty" }, "none yet")));
 }
-// ---------- quota strip ----------------------------------------------------
-// A bar per bond with the cap marked. Bubbles are for relationships; a quota
-// is a distribution, and a strip stays readable when the set grows.
-function quotaStrip(bonds, cap, size, limit) {
-  const ranked = bonds.slice().sort((a, b) => (b.window_signed || 0) - (a.window_signed || 0));
-  const rows = ranked.slice(0, limit || 14);
-  if (!rows.length) return h("div", { class: "empty" }, "no bonds registered");
-  // Headroom past the cap line, so a bar that overshoots it is visibly over.
-  const max = Math.max(cap, ...rows.map(b => b.window_signed || 0), 1) * 1.35;
-  const body = h("div", { style: "padding: 12px 18px 14px; display: grid; gap: 7px" });
-  rows.forEach(b => {
-    const signed = b.window_signed || 0;
-    const over = signed > cap;
-    const fill = over ? themeColors().fire : b.eligible_now === false ? themeColors().muted : themeColors().out;
-    const track = h("div", { style: "position:relative;height:14px;background:var(--panel2);border-radius:4px;overflow:hidden;flex:1" });
-    track.appendChild(h("i", { style: `position:absolute;left:0;top:0;bottom:0;width:${(signed / max) * 100}%;background:${fill};opacity:.75` }));
-    // the cap line sits where the rule actually bites
-    track.appendChild(h("i", { style: `position:absolute;top:-2px;bottom:-2px;left:${(cap / max) * 100}%;width:2px;background:${themeColors().amber}` }));
-    body.appendChild(h("div", { style: "display:flex;align-items:center;gap:12px" },
-      h("span", { style: "width:110px;font:500 11.5px var(--mono);color:var(--muted)" }, link("bond", b.bond_id, short(b.bond_id, 12))),
-      track,
-      h("span", { style: `width:64px;text-align:right;font:600 11.5px var(--mono);color:${over ? "var(--amber)" : "var(--text)"}` }, signed + " / " + cap)));
-  });
-  const rest = ranked.length - rows.length;
-  return h("div", null, body, h("div", { class: "legend", style: "padding:0 18px 12px" },
-    h("span", null, h("i", { style: "background:" + themeColors().out }), "under cap"),
-    h("span", null, h("i", { style: "background:" + themeColors().fire }), "over cap"),
-    h("span", null, h("i", { style: "background:" + themeColors().amber }), "cap " + num(cap) + " of " + num(size)),
-    rest > 0 ? h("span", null, "top " + rows.length + " of " + ranked.length + " \u00b7 " + h("a", { href: "#/bonds" }, "all bonds")) : null));
-}
-
 // ---------- transaction graph ---------------------------------------------
 // The chain records two edges per coin and nothing else: the block that
 // created an output, and the block that spent it. That is enough to walk a
@@ -1332,7 +1225,11 @@ function quotaStrip(bonds, cap, size, limit) {
 // pass through it.
 const traceCache = new Map();
 async function blockAt(h) {
-  if (!traceCache.has(h)) traceCache.set(h, await get("/explorer/block/" + h));
+  if (!traceCache.has(h)) {
+    traceCache.set(h, await get("/explorer/block/" + h));
+    // Bounded: a long-lived tab would otherwise keep every block it ever saw.
+    while (traceCache.size > 120) traceCache.delete(traceCache.keys().next().value);
+  }
   return traceCache.get(h);
 }
 
@@ -1489,6 +1386,7 @@ async function tracePage(m) {
     coin ? h("a", { class: "btn", href: "#/output/" + id }, "output") : null,
   ];
   view.replaceChildren(
+    crumb(h("a", { href: "#/block/" + centre }, "block " + num(centre))),
     h("div", { class: "title" }, h("h1", null, "Transaction graph"),
       h("span", { class: "dim" }, coin ? "traced from output " + short(id, 14) : "centred on block " + num(centre)),
       h("div", { class: "pager" }, links)),
