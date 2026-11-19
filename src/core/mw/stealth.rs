@@ -170,10 +170,43 @@ impl WalletKeys {
     }
 
     pub fn address(&self) -> StealthAddress {
+        self.subaddress(0)
+    }
+
+    /// The spend secret for subaddress `index`: `b + H_s(a ‖ index)`.
+    ///
+    /// Index 0 returns the wallet's own spend secret, so the base address and
+    /// every existing wallet file restore to exactly the same keys as before.
+    fn subaddress_spend_secret(&self, index: u32) -> Scalar {
+        if index == 0 {
+            return self.spend_secret;
+        }
+        let tweak = hash_to_scalar(
+            b"midwimble.wallet.subaddress.v1",
+            &[self.scan_secret.as_bytes(), &index.to_le_bytes()],
+        );
+        self.spend_secret + tweak
+    }
+
+    /// The public address for subaddress `index`.
+    ///
+    /// All subaddresses share the scan and recovery keys; only the spend key
+    /// changes, so one scan pass over the chain still finds every payment.
+    pub fn subaddress(&self, index: u32) -> StealthAddress {
         StealthAddress {
             scan: compress(&RistrettoPoint::mul_base(&self.scan_secret)),
-            spend: compress(&RistrettoPoint::mul_base(&self.spend_secret)),
+            spend: compress(&RistrettoPoint::mul_base(&self.subaddress_spend_secret(index))),
             recovery: self.recovery_key,
+        }
+    }
+
+    /// Keys that own subaddress `index`'s outputs: the same scan and recovery
+    /// keys, with the derived spend secret (`subaddress(0)` equals `self`).
+    pub fn subaddress_keys(&self, index: u32) -> Self {
+        Self {
+            scan_secret: self.scan_secret,
+            spend_secret: self.subaddress_spend_secret(index),
+            recovery_key: self.recovery_key,
         }
     }
 
@@ -247,6 +280,35 @@ impl ViewKey {
     /// The address whose payments this key sees.
     pub fn address(&self) -> StealthAddress {
         self.address
+    }
+
+    /// The public address for subaddress `index`, derived from the scan
+    /// secret alone, so a watch-only service can enumerate deposit addresses
+    /// without holding any spend key.
+    ///
+    /// `None` only if the stored spend key is not a valid curve point.
+    pub fn subaddress(&self, index: u32) -> Option<StealthAddress> {
+        if index == 0 {
+            return Some(self.address);
+        }
+        let tweak = hash_to_scalar(
+            b"midwimble.wallet.subaddress.v1",
+            &[self.scan_secret.as_bytes(), &index.to_le_bytes()],
+        );
+        let spend = decompress(&self.address.spend)? + RistrettoPoint::mul_base(&tweak);
+        Some(StealthAddress {
+            scan: self.address.scan,
+            spend: compress(&spend),
+            recovery: self.address.recovery,
+        })
+    }
+
+    /// A view key for subaddress `index`, for `scan_output_view_only`.
+    pub fn for_subaddress(&self, index: u32) -> Option<Self> {
+        Some(Self {
+            scan_secret: self.scan_secret,
+            address: self.subaddress(index)?,
+        })
     }
 
     /// Bech32m, human-readable part `mwview`, payload `version ‖ a ‖ B ‖ R`:
@@ -667,5 +729,45 @@ mod tests {
         let mut created = new_output(&bob.address(), 9).unwrap();
         created.output.payload[30] ^= 1;
         assert!(scan_output(&bob, &created.output).is_none());
+    }
+
+    #[test]
+    fn subaddress_zero_is_the_base_address() {
+        let keys = WalletKeys::from_seed(&[7u8; 64], [3u8; 32]);
+        assert_eq!(keys.subaddress(0), keys.address());
+        assert_eq!(keys.subaddress_keys(0).address(), keys.address());
+    }
+
+    #[test]
+    fn subaddress_payments_are_found_by_their_keys_and_view_key() {
+        let keys = WalletKeys::from_seed(&[9u8; 64], [4u8; 32]);
+        let one = keys.subaddress(1);
+        let two = keys.subaddress(2);
+        assert_ne!(one, keys.address());
+        assert_ne!(one, two);
+        // Every subaddress shares scan and recovery keys.
+        assert_eq!(one.scan, keys.address().scan);
+        assert_eq!(one.recovery, keys.address().recovery);
+
+        let paid = new_output(&one, 5_000).unwrap();
+        // The base keys must not claim a subaddress payment.
+        assert!(scan_output(&keys, &paid.output).is_none());
+        let owned = scan_output(&keys.subaddress_keys(1), &paid.output).expect("index 1 sees it");
+        assert_eq!(owned.value, 5_000);
+        assert_eq!(
+            compress(&RistrettoPoint::mul_base(&owned.owner_secret)),
+            paid.output.owner_key
+        );
+        // Another subaddress must not see it either.
+        assert!(scan_output(&keys.subaddress_keys(2), &paid.output).is_none());
+
+        // A watch-only key can enumerate the subaddress and value payments.
+        let view = keys.view_only().for_subaddress(1).expect("valid view key");
+        assert_eq!(view.address(), one);
+        assert_eq!(scan_output_view_only(&view, &paid.output), Some(5_000));
+        assert_eq!(
+            keys.view_only().for_subaddress(2).unwrap().address(),
+            two
+        );
     }
 }

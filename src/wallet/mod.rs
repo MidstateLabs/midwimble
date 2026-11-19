@@ -21,7 +21,7 @@
 //! confirms them.
 
 use crate::core::mw::crypto::{self, Point32};
-use crate::core::mw::stealth::scan_output;
+use crate::core::mw::stealth::{scan_output, OwnedOutput};
 use crate::core::mw::{
     build_transaction, Output, Payment, Spendable, StealthAddress, Transaction, WalletKeys,
 };
@@ -62,6 +62,10 @@ pub struct WalletCoin {
     pub spent_height: Option<u64>,
     /// Hash of an unconfirmed transaction spending it.
     pub pending_tx: Option<String>,
+    /// Subaddress index this coin was paid to (0 is the wallet's own
+    /// address). Older wallet files default to 0.
+    #[serde(default)]
+    pub subaddress: u32,
 }
 
 /// A payment made from this wallet (the browser wallet's, field for field).
@@ -115,6 +119,10 @@ struct WalletData {
     /// This wallet's own payments.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     sent: Vec<Sent>,
+    /// Highest subaddress index in use (0 means only the wallet's own
+    /// address). Persisted so a restart never reuses an index.
+    #[serde(default)]
+    next_index: u32,
     /// The id of block 0 of the chain this wallet scanned, recorded at its
     /// first sync: a node on another chain (another network, or the network
     /// relaunched) is refused. The browser wallet checks the network against
@@ -299,6 +307,7 @@ impl Wallet {
                 coins: Vec::new(),
                 birth_height,
                 sent: Vec::new(),
+                next_index: 0,
                 genesis: None,
             },
             keys,
@@ -378,6 +387,60 @@ impl Wallet {
 
     pub fn address(&self) -> StealthAddress {
         self.keys.address()
+    }
+
+    /// The deposit address for subaddress `index` (0 is the wallet's own).
+    pub fn address_at(&self, index: u32) -> StealthAddress {
+        self.keys.subaddress(index)
+    }
+
+    /// Highest subaddress index this wallet has allocated.
+    pub fn next_index(&self) -> u32 {
+        self.data.next_index
+    }
+
+    /// Every address in use, base address first.
+    pub fn addresses(&self) -> Vec<StealthAddress> {
+        (0..=self.data.next_index)
+            .map(|index| self.keys.subaddress(index))
+            .collect()
+    }
+
+    /// Allocates the next subaddress and returns it. The index is persisted,
+    /// so a restart never reuses one.
+    pub fn new_subaddress(&mut self) -> Result<StealthAddress> {
+        let next = self
+            .data
+            .next_index
+            .checked_add(1)
+            .ok_or_else(|| anyhow!("subaddress space exhausted"))?;
+        self.data.next_index = next;
+        self.save()?;
+        Ok(self.keys.subaddress(next))
+    }
+
+    /// Scans one output against the base address and every allocated
+    /// subaddress, returning the index that owns it.
+    fn scan_owned(&self, output: &Output) -> Option<(u32, OwnedOutput)> {
+        if let Some(owned) = scan_output(&self.keys, output) {
+            return Some((0, owned));
+        }
+        for index in 1..=self.data.next_index {
+            let keys = self.keys.subaddress_keys(index);
+            if let Some(owned) = scan_output(&keys, output) {
+                return Some((index, owned));
+            }
+        }
+        None
+    }
+
+    /// Re-opens a stored coin with the keys for the subaddress that owns it,
+    /// so subaddress coins spend and recover like any other.
+    fn scan_coin(&self, coin: &WalletCoin) -> Option<OwnedOutput> {
+        if coin.subaddress == 0 {
+            return scan_output(&self.keys, &coin.output);
+        }
+        scan_output(&self.keys.subaddress_keys(coin.subaddress), &coin.output)
     }
 
     /// A key that sees this wallet's incoming payments but cannot spend
@@ -540,7 +603,7 @@ impl Wallet {
             if known.contains(&output.commitment) {
                 continue;
             }
-            if let Some(owned) = scan_output(&self.keys, output) {
+            if let Some((subaddress, owned)) = self.scan_owned(output) {
                 known.insert(output.commitment);
                 // Found again after a rollback, a coin that a payment still
                 // waiting for a block spends stays reserved for it.
@@ -552,6 +615,7 @@ impl Wallet {
                     coinbase,
                     spent_height: None,
                     pending_tx,
+                    subaddress,
                 });
             }
         }
@@ -895,7 +959,7 @@ impl Wallet {
                 if known.contains(&output.commitment) {
                     continue;
                 }
-                if let Some(owned) = scan_output(&self.keys, output) {
+                if let Some((_subaddress, owned)) = self.scan_owned(output) {
                     found = true;
                     value = value.saturating_add(owned.value);
                 }
@@ -988,7 +1052,7 @@ impl Wallet {
             if known.contains(&output.commitment) {
                 continue;
             }
-            if let Some(owned) = scan_output(&self.keys, output) {
+            if let Some((subaddress, owned)) = self.scan_owned(output) {
                 found += 1;
                 known.insert(output.commitment);
                 let pending_tx = self.reserved_for(&output.commitment);
@@ -999,6 +1063,7 @@ impl Wallet {
                     coinbase: *coinbase,
                     spent_height: None,
                     pending_tx,
+                    subaddress,
                 });
             }
         }
@@ -1100,7 +1165,8 @@ impl Wallet {
             if total >= need {
                 break;
             }
-            let owned = scan_output(&self.keys, &c.output)
+            let owned = self
+                .scan_coin(c)
                 .ok_or_else(|| anyhow!("stored coin no longer opens"))?;
             chosen.push(Spendable {
                 commitment: c.output.commitment,
@@ -1169,7 +1235,7 @@ impl Wallet {
             .coins
             .iter()
             .filter(|c| c.spent_height.is_none())
-            .filter(|c| scan_output(&self.keys, &c.output).map_or(true, |o| !o.recovery_ok))
+            .filter(|c| self.scan_coin(c).map_or(true, |o| !o.recovery_ok))
             .collect()
     }
 
@@ -1192,7 +1258,8 @@ impl Wallet {
             if !state.utxos.contains_key(&coin.output.commitment) {
                 continue;
             }
-            let owned = scan_output(&self.keys, &coin.output)
+            let owned = self
+                .scan_coin(coin)
                 .ok_or_else(|| anyhow!("coin no longer opens"))?;
             if !owned.recovery_ok {
                 continue;
