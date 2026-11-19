@@ -42,6 +42,7 @@ pub fn recovery_salt(shared_secret: &[u8; 32]) -> [u8; 32] {
     hash_domain(b"midwimble.recovery.salt.v1", &[shared_secret])
 }
 
+/// Computes the Pedersen commitment (rc) for a recovery output, binding value, blinding, and salt.
 pub fn recovery_commitment(
     recovery_key: &[u8; 32],
     value: u64,
@@ -161,6 +162,7 @@ impl ClaimedOutput {
     }
 }
 
+/// Represents a complete recovery claim, including outputs and the MSS signature.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RecoveryClaim {
     pub checkpoint_id: [u8; 32],

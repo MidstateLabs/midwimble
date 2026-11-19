@@ -366,6 +366,7 @@ pub fn pow_seed(mining_hash: &[u8; 32], nonce: u64) -> [u8; 32] {
     *blake3::hash(&data).as_bytes()
 }
 
+/// Performs k-fold iteration of BLAKE3 compression, serving as the canonical scalar reference miner.
 fn iterate_scalar(seed: &[u8; 32]) -> [u8; 32] {
     let mut x = *seed;
     for _ in 0..EXTENSION_ITERATIONS {

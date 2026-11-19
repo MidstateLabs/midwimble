@@ -44,6 +44,7 @@ impl Checkpoint {
         }
     }
 
+    /// Computes the canonical 32-byte ID for this checkpoint.
     pub fn id(&self) -> [u8; 32] {
         let bytes = bincode::serialize(self).expect("checkpoint serialization cannot fail");
         hash_domain(b"midwimble.midstate-anchor.v1", &[&bytes])

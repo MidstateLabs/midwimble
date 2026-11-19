@@ -23,6 +23,7 @@ pub struct Spendable {
     pub owner_secret: Scalar,
 }
 
+/// Defines a single payment destination and amount.
 #[derive(Clone, Debug)]
 pub struct Payment {
     pub to: StealthAddress,

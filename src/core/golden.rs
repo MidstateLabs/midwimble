@@ -22,6 +22,7 @@ use super::types::{
     compute_header_hash, midstate_header_hash, registrations_hash, BatchHeader, Extension,
 };
 
+/// Generates a deterministic `Output` structure based on a seed.
 fn output(seed: u8) -> Output {
     Output {
         commitment: [seed; 32],
@@ -33,6 +34,7 @@ fn output(seed: u8) -> Output {
     }
 }
 
+/// Generates a deterministic `Kernel` structure based on features and a seed.
 fn kernel(features: KernelFeatures, seed: u8) -> Kernel {
     Kernel {
         features,
@@ -48,6 +50,7 @@ fn kernel(features: KernelFeatures, seed: u8) -> Kernel {
     }
 }
 
+/// Constructs a fixed, canonical `Transaction` for consensus hash testing.
 fn transaction() -> Transaction {
     Transaction {
         body: TxBody {
@@ -70,6 +73,7 @@ fn transaction() -> Transaction {
     }
 }
 
+/// Constructs a fixed, canonical `Coinbase` transaction for consensus hash testing.
 fn coinbase() -> Coinbase {
     Coinbase {
         outputs: OutputGroup {
@@ -81,6 +85,7 @@ fn coinbase() -> Coinbase {
     }
 }
 
+/// Constructs a fixed, canonical `Checkpoint` structure for consensus hash testing.
 fn checkpoint() -> Checkpoint {
     Checkpoint {
         version: 1,
@@ -93,6 +98,7 @@ fn checkpoint() -> Checkpoint {
     }
 }
 
+/// Constructs a fixed, canonical set of `RelayHeaders` for consensus hash testing.
 fn relayed() -> RelayHeaders {
     let link = |seed: u8| HeaderLink {
         post_tx_midstate: [seed; 32],
@@ -108,6 +114,7 @@ fn relayed() -> RelayHeaders {
     }
 }
 
+/// Constructs a fixed, canonical `BondRegistration` structure for consensus hash testing.
 fn registration() -> BondRegistration {
     BondRegistration {
         proof: BondProof {
@@ -145,6 +152,7 @@ fn registration() -> BondRegistration {
     }
 }
 
+/// Constructs a fixed, canonical `BatchHeader` for consensus hash testing.
 fn header() -> BatchHeader {
     BatchHeader {
         height: 12,

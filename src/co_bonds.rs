@@ -66,6 +66,7 @@ struct Entry {
 }
 
 impl Entry {
+    /// Returns a public view of the co-bond entry.
     fn view(&self) -> CoBondView {
         CoBondView {
             bond_id: hex::encode(self.coin.coin_id()),
@@ -290,11 +291,13 @@ impl CoBondBook {
         self.insert(e).map(|v| (v, true))
     }
 
+    /// Finds an entry in the book matching the given coin ID.
     fn find(&self, id: &[u8; 32]) -> Option<Entry> {
         let entries = self.entries.lock().expect("co-bond book lock poisoned");
         entries.iter().find(|e| e.coin.coin_id() == *id).cloned()
     }
 
+    /// Inserts a new entry into the book, saves the state, and returns its view.
     fn insert(&self, e: Entry) -> Result<CoBondView> {
         let view = e.view();
         {
@@ -309,6 +312,7 @@ impl CoBondBook {
         Ok(view)
     }
 
+    /// Atomically saves the current list of entries to the book file.
     fn save(&self, entries: &[Entry]) -> Result<()> {
         let tmp = self.path.with_extension("json.tmp");
         std::fs::write(&tmp, serde_json::to_vec_pretty(entries)?)

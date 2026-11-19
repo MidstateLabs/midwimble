@@ -34,6 +34,7 @@ const fn max(a: usize, b: usize) -> usize {
     }
 }
 
+/// A complete, verified state snapshot tied to a specific Checkpoint.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Snapshot {
     pub checkpoint: Checkpoint,

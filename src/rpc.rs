@@ -661,6 +661,7 @@ async fn cors(
     resp
 }
 
+/// Retrieves the full serialized block data for a range of blocks starting at `start`.
 async fn blocks(
     AxState(node): AxState<NodeHandle>,
     Path((start, count)): Path<(u64, u64)>,
@@ -1207,6 +1208,8 @@ struct SubmitBody {
     block_hex: String,
 }
 
+/// Submits a solved block (batch) to the node for validation and inclusion.
+/// Returns confirmation details including the block hash and merge status.
 async fn mining_submit(
     AxState(node): AxState<NodeHandle>,
     Json(body): Json<SubmitBody>,
@@ -1259,6 +1262,7 @@ impl RpcClient {
         Self { addr }
     }
 
+    /// Executes an RPC request, validating the HTTP status code (2xx) and handling RPC errors.
     fn request(&self, method: &str, path: &str, body: Option<&Value>) -> Result<Value> {
         let (status, value) = self.request_raw(method, path, body)?;
         if !(200..300).contains(&status) {
@@ -1277,6 +1281,7 @@ impl RpcClient {
         self.request_raw("POST", path, Some(body))
     }
 
+    /// Performs the raw HTTP/1.1 request over TCP, handling connection, timeouts, and chunked decoding.
     fn request_raw(&self, method: &str, path: &str, body: Option<&Value>) -> Result<(u16, Value)> {
         use std::io::{Read, Write};
         let payload = body.map(|b| b.to_string()).unwrap_or_default();
@@ -1312,14 +1317,17 @@ impl RpcClient {
         Ok((status, value))
     }
 
+    /// Performs a GET request to the specified RPC path.
     pub fn get(&self, path: &str) -> Result<Value> {
         self.request("GET", path, None)
     }
 
+    /// Performs a POST request with a JSON body to the specified RPC path.
     pub fn post(&self, path: &str, body: &Value) -> Result<Value> {
         self.request("POST", path, Some(body))
     }
 
+    /// Retrieves the current chain height from the node's state endpoint (/state).
     pub fn height(&self) -> Result<u64> {
         self.get("/state")?["height"]
             .as_u64()
@@ -1411,6 +1419,7 @@ impl RpcClient {
             .collect()
     }
 
+    /// Submits a single transaction to the node and returns its assigned transaction hash.
     pub fn submit(&self, tx: &Transaction) -> Result<String> {
         let v = self.post(
             "/tx",

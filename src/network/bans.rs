@@ -31,6 +31,7 @@ pub const FORGET_AFTER: Duration = Duration::from_secs(24 * 3600);
 /// soonest to end.
 pub const MAX_RECORDS: usize = 10_000;
 
+/// Internal record tracking a peer's ban history, including expiration time and escalation count.
 #[derive(Clone, Debug)]
 struct Record {
     /// `None`: banned for good (bans the node was started with).
@@ -48,6 +49,7 @@ pub struct BannedPeer {
     pub seconds_left: Option<u64>,
 }
 
+/// Manages the state of all banned peers, handling escalation and record cleanup.
 #[derive(Debug, Default)]
 pub struct Bans {
     records: HashMap<PeerId, Record>,
@@ -88,6 +90,7 @@ impl Bans {
         );
     }
 
+    /// Checks if 
     pub fn is_banned(&self, peer: &PeerId, now: Instant) -> bool {
         self.records
             .get(peer)

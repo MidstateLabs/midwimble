@@ -360,6 +360,7 @@ pub fn find_commit(
     Ok(None)
 }
 
+/// Loads all AnchorRecords from the JSONL store file.
 pub fn load_records(path: &Path) -> Result<Vec<AnchorRecord>> {
     if !path.exists() {
         return Ok(Vec::new());
@@ -417,6 +418,7 @@ pub fn load_records_from(
     Ok((records, pos))
 }
 
+/// Appends a serialized AnchorRecord to the JSONL store file.
 pub fn append_record(path: &Path, record: &AnchorRecord) -> Result<()> {
     let mut f = std::fs::OpenOptions::new()
         .create(true)

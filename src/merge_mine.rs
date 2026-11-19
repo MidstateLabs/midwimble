@@ -40,6 +40,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+/// Configuration parameters for the merged mining process.
 #[derive(Clone, Debug)]
 pub struct MergeMineConfig {
     /// midstate RPC, e.g. `127.0.0.1:8545`.
@@ -61,6 +62,7 @@ pub struct MergeMineConfig {
     pub anchor_depth: usize,
 }
 
+/// Thread-safe statistics tracking for the merged mining operation.
 #[derive(Debug, Default)]
 pub struct MergeStats {
     pub rounds: AtomicU64,
@@ -140,6 +142,8 @@ fn midwimble_pow(tpl: &Value) -> Result<PowAlgo> {
     }
 }
 
+/// Fetches templates and prepares all necessary data for a single mining round,
+/// including calculating the coinbase outputs and verifying merge consistency.
 fn prepare(
     cfg: &MergeMineConfig,
     ms: &RpcClient,
@@ -213,6 +217,7 @@ fn prepare(
     })
 }
 
+/// Executes the Proof-of-Work search using configured hardware (GPU or CPU).
 fn search(
     algo: PowAlgo,
     mining_hash: [u8; 32],
@@ -231,6 +236,7 @@ fn search(
     }
 }
 
+/// Logs the details of every Midstate coinbase output to the configured JSONL file.
 fn log_coinbase(cfg: &MergeMineConfig, round: &Round, accepted: bool, error: Option<String>) {
     let outputs: Vec<Value> = round
         .coinbase

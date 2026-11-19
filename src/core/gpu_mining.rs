@@ -898,10 +898,12 @@ impl GpuMiner {
         })
     }
 
+    /// Returns the name of the GPU adapter this miner instance is bound to.
     pub fn adapter_name(&self) -> &str {
         &self.adapter_name
     }
 
+    /// Executes a single compute pipeline dispatch on the GPU queue.
     fn dispatch(&self, pipe: &wgpu::ComputePipeline, groups: u32) {
         let mut enc = self
             .device
@@ -918,6 +920,7 @@ impl GpuMiner {
         self.queue.submit([enc.finish()]);
     }
 
+    /// Blocks the host thread until all previously submitted GPU work has completed.
     fn wait(&self) {
         // wgpu 29: PollType::Wait now carries { submission_index, timeout };
         // wait_indefinitely() is the old "block until all submitted work is done".
@@ -949,6 +952,8 @@ impl GpuMiner {
         out
     }
 
+    /// Calculates the required number of workgroups for a given number of nonces (n),
+    /// assuming a workgroup size of 64.
     fn groups(n: u32) -> u32 {
         (n + 63) / 64
     }

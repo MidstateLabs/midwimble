@@ -189,6 +189,7 @@ impl RelayEntry {
         }
     }
 
+    /// Checks if this entry is the canonical genesis root.
     pub fn is_root(&self) -> bool {
         *self == Self::root()
     }
@@ -209,6 +210,7 @@ impl RelayEntry {
         e
     }
 
+    /// Computes the entry's digest, chaining it from the previous entry's digest.
     fn digest_after(&self, prev_digest: &[u8; 32]) -> [u8; 32] {
         hash_domain(
             b"midwimble.relay-entry.v1",
@@ -235,6 +237,7 @@ pub struct RelayHeaders {
 }
 
 impl RelayHeaders {
+    /// Calculates the total byte weight of all relayed headers.
     pub fn weight(&self) -> u64 {
         RELAY_WEIGHT_PER_HEADER.saturating_mul(self.headers.len() as u64)
     }
@@ -380,6 +383,7 @@ impl Relay {
         Some(e)
     }
 
+    /// Returns a reference to the highest height entry in the relay's chain.
     pub fn tip(&self) -> &RelayEntry {
         self.entries
             .values()

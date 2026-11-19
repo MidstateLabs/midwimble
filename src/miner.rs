@@ -32,11 +32,13 @@ fn search(
     }
 }
 
+/// Represents a successfully mined block, including the job ID and the resulting batch data.
 pub struct MinedBlock {
     pub job: u64,
     pub batch: Batch,
 }
 
+/// Coordinates the mining process, managing threads, job state, and result delivery.
 pub struct Miner {
     threads: usize,
     cancel: Option<Arc<AtomicBool>>,
@@ -61,6 +63,7 @@ impl Miner {
         )
     }
 
+    /// Starts a new mining job using the provided block template on a dedicated OS thread.
     pub fn start(&mut self, template: BlockTemplate) {
         self.stop();
         self.job += 1;
@@ -89,22 +92,26 @@ impl Miner {
             .expect("spawning miner thread");
     }
 
+    /// Signals the currently running mining thread to stop gracefully.
     pub fn stop(&mut self) {
         if let Some(c) = self.cancel.take() {
             c.store(true, Ordering::Relaxed);
         }
     }
 
+    /// Checks if a mining job is currently active and running on a dedicated thread.
     pub fn is_running(&self) -> bool {
         self.cancel.is_some()
     }
 
+    /// Returns the ID of the current mining job.
     pub fn current_job(&self) -> u64 {
         self.job
     }
 }
 
 impl Drop for Miner {
+    /// Ensures that any running mining thread is gracefully stopped when the Miner object is dropped.
     fn drop(&mut self) {
         self.stop();
     }

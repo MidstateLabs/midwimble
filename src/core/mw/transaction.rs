@@ -64,6 +64,7 @@ pub const MAX_RANGE_PROOF_LEN: usize = 992;
 
 // ── Outputs ─────────────────────────────────────────────────────────────────
 
+/// Represents a single MimbleWimble output (UTXO) with commitment, owner key, and encrypted value.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Output {
     /// Pedersen commitment `v·G + r·H`.
@@ -320,6 +321,7 @@ impl StoredGroup {
 
 // ── Inputs ──────────────────────────────────────────────────────────────────
 
+/// Represents an input UTXO being spent, secured by a Schnorr signature from the owner key.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Input {
     /// Commitment of the UTXO being spent.
@@ -377,6 +379,7 @@ impl KernelFeatures {
     }
 }
 
+/// Defines transaction metadata (fee, min_height) and carries a cryptographic proof of knowledge of its secrets.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Kernel {
     pub features: KernelFeatures,
@@ -469,6 +472,7 @@ impl Kernel {
 
 // ── Transactions ────────────────────────────────────────────────────────────
 
+/// The core body of a transaction, containing inputs, output groups, and kernels in canonical order.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct TxBody {
     /// Strictly ascending by commitment.
@@ -487,6 +491,7 @@ pub enum Context {
     Block,
 }
 
+/// A complete MimbleWimble transaction, including cryptographic offsets for balance verification.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Transaction {
     pub body: TxBody,
