@@ -419,6 +419,19 @@ impl Wallet {
         Ok(self.keys.subaddress(next))
     }
 
+    /// Raises the scan watermark to `index`, so every subaddress up to it is
+    /// watched for payments. Never lowers it. Returns the resulting watermark.
+    ///
+    /// Blocks already scanned are not re-walked: a payment to a newly watched
+    /// index only turns up on the next `rescan`.
+    pub fn scan_to(&mut self, index: u32) -> Result<u32> {
+        if index > self.data.next_index {
+            self.data.next_index = index;
+            self.save()?;
+        }
+        Ok(self.data.next_index)
+    }
+
     /// Scans one output against the base address and every allocated
     /// subaddress, returning the index that owns it.
     fn scan_owned(&self, output: &Output) -> Option<(u32, OwnedOutput)> {

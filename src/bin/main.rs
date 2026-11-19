@@ -329,8 +329,32 @@ enum WalletCmd {
         #[arg(long, default_value_t = midwimble::core::recovery::DEFAULT_RECOVERY_HEIGHT)]
         recovery_height: u32,
     },
-    /// Print the receiving address.
-    Address,
+    /// Derive the address for a subaddress index: 0 is the base address.
+    ///
+    /// Derivation is stateless, so any index can be printed without changing
+    /// the wallet. An index above the scan watermark is not watched for
+    /// payments until `wallet scan-to` raises it.
+    Address {
+        /// Subaddress index; 0 is the wallet's base address.
+        #[arg(long, default_value_t = 0)]
+        index: u32,
+    },
+    /// List the addresses this wallet watches, base address first.
+    Addresses {
+        /// Also print this many addresses past the watermark, marked
+        /// `unscanned`, so a caller can hand them out before they are watched.
+        #[arg(long, default_value_t = 0)]
+        gap: u32,
+    },
+    /// Allocate one fresh subaddress (raises the watermark by one) and print it.
+    NewSubaddress,
+    /// Raise the scan watermark to a subaddress index, so payments to every
+    /// index up to it are watched. Never lowers it; a rescan finds payments to
+    /// indices that were raised after their block was scanned.
+    ScanTo {
+        /// Highest subaddress index to watch; 0 watches only the base address.
+        index: u32,
+    },
     /// Print a view key: it sees every payment to this wallet but cannot
     /// spend any. `pool-mine` needs one to check its payouts.
     ViewKey,
@@ -1777,8 +1801,44 @@ fn run(cli: Cli) -> Result<()> {
                     )?;
                     out!("Restored. Address: {}", w.address());
                 }
-                WalletCmd::Address => {
-                    out!("{}", Wallet::open(&path, &password()?)?.address());
+                WalletCmd::Address { index } => {
+                    let w = Wallet::open(&path, &password()?)?;
+                    if index > w.next_index() {
+                        eprintln!(
+                            "warning: index {index} is above this wallet's scan watermark ({}). \
+                             Payments to it will not be seen until `wallet scan-to {index}` \
+                             and a `wallet rescan`.",
+                            w.next_index()
+                        );
+                    }
+                    out!("{}", w.address_at(index));
+                }
+                WalletCmd::Addresses { gap } => {
+                    let w = Wallet::open(&path, &password()?)?;
+                    let watermark = w.next_index();
+                    for index in 0..=watermark {
+                        out!("{}\t{}", index, w.address_at(index));
+                    }
+                    for index in (watermark + 1)..=watermark.saturating_add(gap) {
+                        out!("{}\t{}\tunscanned", index, w.address_at(index));
+                    }
+                }
+                WalletCmd::NewSubaddress => {
+                    let mut w = Wallet::open(&path, &password()?)?;
+                    let address = w.new_subaddress()?;
+                    eprintln!(
+                        "Subaddress {} allocated. Share it as a deposit address; this wallet spends it like any other.",
+                        w.next_index()
+                    );
+                    out!("{}", address);
+                }
+                WalletCmd::ScanTo { index } => {
+                    let mut w = Wallet::open(&path, &password()?)?;
+                    let watermark = w.scan_to(index)?;
+                    eprintln!(
+                        "Scan watermark is now {watermark}; watching {} addresses. Run `wallet rescan` if a payment may already have been scanned past.",
+                        watermark as u64 + 1
+                    );
                 }
                 WalletCmd::ViewKey => {
                     let view = Wallet::open(&path, &password()?)?.view_key();
@@ -1845,13 +1905,14 @@ fn run(cli: Cli) -> Result<()> {
                     let w = Wallet::open(&path, &password()?)?;
                     for c in w.coins() {
                         out!(
-                            "{} value={} height={} coinbase={} spent={:?} pending={}",
+                            "{} value={} height={} coinbase={} spent={:?} pending={} sub={}",
                             hex::encode(c.output.commitment),
                             format_amount(c.value),
                             c.height,
                             c.coinbase,
                             c.spent_height,
-                            c.pending_tx.is_some()
+                            c.pending_tx.is_some(),
+                            c.subaddress
                         );
                     }
                 }
