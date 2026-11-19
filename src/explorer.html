@@ -10,234 +10,247 @@
 <title>midwimble explorer</title>
 <style>
   :root, [data-theme="dark"] {
-    --bg: #07070a; --panel: #0e0d14; --panel2: #13111c;
-    --text: #f4f3f7; --muted: #9c98aa;
-    --green: #00ff41; --purple: #8b5cf6; --lilac: #a78bfa; --amber: #f5c451;
-    --line: rgba(167, 139, 250, .18); --max: 1180px;
+    --bg: #060609; --panel: #0d0c13; --panel2: #14121d; --panel3: #1a1726;
+    --text: #f2f1f6; --muted: #938fa6;
+    --green: #00ff41; --purple: #8b5cf6; --lilac: #a78bfa; --amber: #f5c451; --fire: #ff8a3d;
+    --line: rgba(167, 139, 250, .16); --line2: rgba(167, 139, 250, .30);
+    --max: 1240px; --r: 14px;
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --sans: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
   }
   [data-theme="light"] {
-    --bg: #f8f7fc; --panel: #ffffff; --panel2: #f0eef6;
-    --text: #1a1a2e; --muted: #6b6899;
-    --green: #059669; --purple: #7c3aed; --lilac: #8b5cf6; --amber: #d97706;
-    --line: rgba(124, 58, 237, .12); --max: 1180px;
+    --bg: #f7f6fb; --panel: #ffffff; --panel2: #f2f0f8; --panel3: #e9e5f4;
+    --text: #16162a; --muted: #6b6899;
+    --green: #059669; --purple: #7c3aed; --lilac: #6d28d9; --amber: #b45309; --fire: #c2410c;
+    --line: rgba(124, 58, 237, .14); --line2: rgba(124, 58, 237, .28);
+    --max: 1240px; --r: 14px;
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --sans: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 400 15px/1.6 var(--sans); transition: background .2s, color .2s; }
+  html { scrollbar-color: var(--line2) transparent; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 400 15px/1.55 var(--sans);
+    transition: background .2s, color .2s; -webkit-font-smoothing: antialiased; }
   a { color: var(--lilac); text-decoration: none; }
   a:hover { text-decoration: underline; }
-  header {
-    border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2;
-    background: var(--bg);
-    background: color-mix(in srgb, var(--bg) 92%, transparent);
-    backdrop-filter: blur(8px);
-  }
-  .bar-top { max-width: var(--max); margin: 0 auto; padding: 12px 20px; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
-  .brand { display: flex; align-items: center; gap: 10px; color: var(--text); }
+  b, strong { font-weight: 650; }
+
+  /* ---------- top bar ---------- */
+  header { position: sticky; top: 0; z-index: 5; border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(12px); }
+  .bar-top { max-width: var(--max); margin: 0 auto; padding: 10px 18px; display: flex;
+    gap: 18px; align-items: center; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 9px; color: var(--text); }
   .brand:hover { text-decoration: none; }
-  .brand img { width: 30px; height: 30px; border-radius: 50%; }
-  .brand b { font: 600 14px var(--sans); letter-spacing: .18em; text-transform: uppercase; }
-  nav { display: flex; flex-wrap: wrap; gap: 2px 4px; font-size: 12px; letter-spacing: .04em; }
-  .bar-top nav a {
-    font-size: 13px; padding: 5px 11px; border-radius: 999px; color: var(--muted);
-    transition: color .15s, background .15s;
-  }
-  .bar-top nav a:hover { color: var(--text); background: rgba(167, 139, 250, .10); text-decoration: none; }
-  .bar-top nav a.on { color: var(--text); background: rgba(167, 139, 250, .18); }
-  form { flex: 1; display: flex; min-width: 240px; }
-  form input {
-    flex: 1; background: var(--panel); color: var(--text); border: 1px solid var(--line);
-    border-radius: 10px 0 0 10px; padding: 8px 12px; font: 500 12px var(--mono); outline: none;
-  }
+  .brand img { width: 26px; height: 26px; border-radius: 50%; }
+  .brand b { font: 650 13px var(--sans); letter-spacing: .2em; text-transform: uppercase; }
+  nav { display: flex; align-items: center; gap: 1px; font-size: 13px; }
+  .bar-top nav a { padding: 5px 10px; border-radius: 8px; color: var(--muted); transition: .15s; }
+  .bar-top nav a:hover { color: var(--text); background: var(--panel2); text-decoration: none; }
+  .bar-top nav a.on { color: var(--text); background: var(--panel3); box-shadow: inset 0 -2px 0 var(--lilac); }
+  .bar-top nav .sep { width: 1px; height: 16px; background: var(--line); margin: 0 6px; }
+  form { flex: 1; display: flex; min-width: 220px; }
+  form input { flex: 1; background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 9px 0 0 9px; padding: 7px 12px; font: 500 12px var(--mono); outline: none; }
   form input:focus { border-color: var(--lilac); }
-  form button {
-    background: var(--purple); color: #fff; border: 0; border-radius: 0 10px 10px 0;
-    padding: 0 14px; font: 600 12px var(--mono); cursor: pointer;
-  }
-  #flash { max-width: var(--max); margin: 0 auto; padding: 0 20px; color: var(--amber); font-size: 12px; }
-  /* Hamburger: hidden until the nav would wrap and squeeze the page. */
-  .hamburger {
-    display: none; background: none; border: 1px solid var(--line); border-radius: 10px;
-    color: var(--text); cursor: pointer; padding: 6px 10px; font-size: 16px; line-height: 1;
-    margin-left: auto;
-  }
-  .hamburger:hover { border-color: var(--lilac); }
-  @media (max-width: 860px) {
-    .bar-top { gap: 8px 10px; }
-    .hamburger { display: inline-flex; margin-left: 0; order: 3; }
+  form button { background: var(--purple); color: #fff; border: 0; border-radius: 0 9px 9px 0;
+    padding: 0 14px; font: 600 12px var(--sans); cursor: pointer; }
+  form button:hover { filter: brightness(1.1); }
+  .theme-toggle { background: none; border: 1px solid var(--line); border-radius: 9px; color: var(--muted);
+    cursor: pointer; padding: 5px 9px; font-size: 14px; line-height: 1; }
+  .theme-toggle:hover { color: var(--text); border-color: var(--lilac); }
+  .hamburger { display: none; background: none; border: 1px solid var(--line); border-radius: 9px;
+    color: var(--text); cursor: pointer; padding: 5px 9px; font-size: 15px; line-height: 1; }
+  #flash { max-width: var(--max); margin: 0 auto; padding: 0 18px; color: var(--amber); font-size: 12px; min-height: 0; }
+  @media (max-width: 900px) {
+    .hamburger { display: inline-flex; margin-left: auto; }
     .bar-top nav { display: none; }
-    .bar-top.nav-open nav {
-      display: flex; flex-direction: column; width: 100%; order: 10;
-      padding: 6px 0 2px; border-top: 1px solid var(--line); margin-top: 4px;
-    }
-    .bar-top.nav-open nav a { padding: 9px 12px; font-size: 15px; border-radius: 8px; }
-    .brand { margin-right: auto; }
-    .bar-top #themeToggle { order: 2; }
-    .bar-top form { order: 5; min-width: 0; flex-basis: 100%; }
+    .bar-top.nav-open nav { display: flex; flex-direction: column; align-items: stretch;
+      width: 100%; order: 10; padding: 6px 0; border-top: 1px solid var(--line); }
+    .bar-top.nav-open nav a { padding: 9px 12px; font-size: 15px; }
+    .bar-top nav .sep { display: none; }
+    .bar-top form { order: 6; flex-basis: 100%; }
+    .brand { margin-right: 0; }
+    .theme-toggle { order: 2; }
   }
-  main { padding: 24px 20px 10px; display: grid; gap: 20px; max-width: var(--max); margin: 0 auto; }
-  section { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: 0 1px 3px var(--line); }
-  h2 {
-    margin: 0; padding: 13px 20px; font: 700 11px var(--sans); letter-spacing: .18em;
+
+  /* ---------- layout ---------- */
+  main { padding: 20px 18px 40px; display: grid; gap: 14px; max-width: var(--max); margin: 0 auto; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+    overflow: hidden; }
+  section > h2 { margin: 0; padding: 11px 18px; font: 700 10.5px var(--sans); letter-spacing: .2em;
     text-transform: uppercase; color: var(--lilac); border-bottom: 1px solid var(--line);
-    display: flex; justify-content: space-between; gap: 12px; align-items: center;
-  }
-  h2 .aside { color: var(--muted); letter-spacing: .06em; text-transform: none; font-weight: 500; }
-  .title { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
-  .title h1 { margin: 0; font: 600 22px var(--sans); letter-spacing: .02em; }
-  .title .pager { margin-left: auto; display: flex; gap: 10px; }
-  .btn { border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; font-size: 12px; }
-  .btn.off { color: var(--muted); opacity: .45; pointer-events: none; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
-  .cell { padding: 14px 20px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-  .k { color: var(--muted); font: 600 11px var(--sans); letter-spacing: .14em; text-transform: uppercase; }
-  .cell .v { font-size: 18px; margin-top: 2px; word-break: break-all; letter-spacing: -.02em; }
+    display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+  h2 .aside { color: var(--muted); letter-spacing: .04em; text-transform: none; font-weight: 500; font-size: 12px; }
+  h2 .aside a { color: var(--lilac); }
+  .title { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; padding: 2px 2px 0; }
+  .title h1 { margin: 0; font: 650 21px var(--sans); letter-spacing: -.01em; }
+  .title .dim { font-size: 13px; }
+  .title .pager { margin-left: auto; display: flex; gap: 8px; }
+  .btn { border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; font-size: 12px; color: var(--text); }
+  .btn:hover { border-color: var(--lilac); text-decoration: none; }
+  .btn.off { color: var(--muted); opacity: .4; pointer-events: none; }
+
+  /* ---------- kpis ---------- */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr)); gap: 10px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 13px 15px; }
+  .kpi .label { color: var(--muted); font: 650 10px var(--sans); letter-spacing: .12em; text-transform: uppercase; }
+  .kpi .value { font: 650 20px var(--mono); letter-spacing: -.03em; margin-top: 3px; overflow-wrap: normal; white-space: nowrap; }
+  .kpi .value.sm { font-size: 15px; letter-spacing: -.01em; }
+  .kpi .sub { color: var(--muted); font-size: 11.5px; margin-top: 3px; }
+  .kpi.hero-kpi { background: linear-gradient(160deg, var(--panel3), var(--panel)); border-color: var(--line2); }
+  .kpi .value .unit { color: var(--muted); font-size: 12px; letter-spacing: 0; }
+
+  /* ---------- generic cell grid (detail pages) ---------- */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); }
+  .cell { padding: 13px 18px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .k { color: var(--muted); font: 650 10px var(--sans); letter-spacing: .14em; text-transform: uppercase; }
+  .cell .v { font-size: 17px; margin-top: 2px; word-break: break-all; letter-spacing: -.02em; }
   .cell .v.small { font-size: 13px; letter-spacing: 0; }
-  .meter { height: 4px; background: rgba(167, 139, 250, .12); border-radius: 999px; overflow: hidden; margin-top: 8px; }
+  .cell .sub { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+
+  /* ---------- bars, meters ---------- */
+  .meter { height: 4px; background: var(--line); border-radius: 999px; overflow: hidden; margin-top: 7px; }
   .meter span { display: block; height: 100%; background: linear-gradient(90deg, var(--purple), var(--green)); }
-  .meter.hot span { background: linear-gradient(90deg, var(--purple), var(--amber)); }
-  dl { margin: 0; display: grid; grid-template-columns: minmax(150px, 220px) 1fr; }
-  dt, dd { margin: 0; padding: 9px 20px; border-bottom: 1px solid var(--line); }
-  dt { color: var(--muted); font: 600 11px var(--sans); letter-spacing: .12em; text-transform: uppercase; padding-top: 11px; }
-  dd { word-break: break-all; }
+  .meter.hot span { background: linear-gradient(90deg, var(--purple), var(--fire)); }
+  .bar { height: 6px; border-radius: 3px; background: var(--panel3); overflow: hidden; display: flex; min-width: 44px; }
+  .bar i { display: block; height: 100%; }
+
+  /* ---------- definition lists ---------- */
+  dl { margin: 0; display: grid; grid-template-columns: minmax(140px, 210px) 1fr; }
+  dt, dd { margin: 0; padding: 8px 18px; border-bottom: 1px solid var(--line); }
+  dt { color: var(--muted); font: 650 10px var(--sans); letter-spacing: .12em; text-transform: uppercase; padding-top: 10px; }
+  dd { word-break: break-all; font-size: 14px; }
   dl > :nth-last-child(-n+2) { border-bottom: 0; }
-  .hash { user-select: all; font: 500 13px var(--mono); }
+  .hash { user-select: all; font: 500 12.5px var(--mono); }
+
+  /* ---------- tables ---------- */
   .scroll { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; }
-  th {
-    text-align: left; padding: 9px 20px; color: var(--muted); font: 600 11px var(--sans);
-    letter-spacing: .14em; text-transform: uppercase; border-bottom: 1px solid var(--line); white-space: nowrap;
-  }
-  td { padding: 8px 20px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { text-align: left; padding: 8px 18px; color: var(--muted); font: 650 10px var(--sans);
+    letter-spacing: .13em; text-transform: uppercase; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 8px 18px; border-bottom: 1px solid var(--line); white-space: nowrap; font-size: 13.5px; }
   tr:last-child td { border-bottom: 0; }
-  tbody tr:hover { background: rgba(167, 139, 250, .05); }
+  tbody tr:hover { background: var(--panel2); }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
   .dim { color: var(--muted); }
-  .tag {
-    display: inline-block; padding: 1px 9px; border-radius: 999px; font: 600 11px var(--mono);
-    letter-spacing: .06em; border: 1px solid var(--line); margin-right: 4px;
-  }
-  .tag.merged { color: var(--lilac); border-color: rgba(167, 139, 250, .45); }
-  .tag.native { color: var(--muted); }
-  .tag.ok { color: var(--green); border-color: rgba(0, 255, 65, .35); }
-  .tag.warn { color: var(--amber); border-color: rgba(245, 196, 81, .4); }
-  .empty, .note { color: var(--muted); padding: 14px 20px; }
-  .note { font-size: 12px; border-top: 1px solid var(--line); }
-  .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+
+  /* ---------- tags ---------- */
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font: 600 10.5px var(--mono);
+    letter-spacing: .04em; border: 1px solid var(--line); margin-right: 4px; color: var(--muted); }
+  .tag.merged { color: var(--lilac); border-color: var(--line2); }
+  .tag.ok { color: var(--green); border-color: color-mix(in srgb, var(--green) 35%, transparent); }
+  .tag.warn { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 40%, transparent); }
+  .tag.fire { color: var(--fire); border-color: color-mix(in srgb, var(--fire) 45%, transparent); }
+  .empty, .note { color: var(--muted); padding: 12px 18px; }
+  .note { font-size: 11.5px; border-top: 1px solid var(--line); line-height: 1.6; }
+  .note a { color: var(--lilac); }
+
+  /* ---------- charts ---------- */
+  .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
   .charts.two { grid-template-columns: repeat(auto-fit, minmax(430px, 1fr)); }
-  .chart { padding: 12px 20px 14px; border-right: 1px solid var(--line); }
-  .chart svg { width: 100%; height: 120px; display: block; margin-top: 6px; }
-  .diagram { padding: 14px 20px 18px; }
+  .chart { padding: 12px 18px 14px; border-right: 1px solid var(--line); }
+  .chart svg { width: 100%; height: 120px; display: block; margin-top: 8px; }
+  .chart.tall svg { height: 168px; }
+  .diagram { padding: 14px 18px 16px; }
   .diagram svg { width: 100%; display: block; }
-  .legend { display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: 11px; letter-spacing: .06em; margin-top: 10px; }
-  .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
-  .train { display: flex; gap: 10px; overflow-x: auto; padding: 14px 20px 18px; scrollbar-width: thin; }
-  .train a { flex: 0 0 136px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px;
-    padding: 10px 12px; color: var(--text); transition: transform .18s, border-color .18s; }
-  .train a:hover { transform: translateY(-3px); border-color: var(--lilac); text-decoration: none; }
-  .train a.fresh { animation: slidein .55s ease-out; border-color: rgba(0, 255, 65, .55); }
-  @keyframes slidein { from { opacity: 0; transform: translateX(-26px); } }
-  .train .hh { font: 600 15px var(--mono); color: var(--lilac); }
-  .train .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
-  .train a.light { border-style: dashed; border-color: rgba(245, 196, 81, .45); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); font-size: 11px; letter-spacing: .03em; margin-top: 9px; }
+  .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: 0; }
+  .viz { padding: 6px 18px 14px; }
+
+  /* ---------- block train ---------- */
+  .train { display: flex; gap: 8px; overflow-x: auto; padding: 12px 18px 14px; scrollbar-width: thin; }
+  .train a { flex: 0 0 132px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px;
+    padding: 9px 11px; color: var(--text); transition: transform .16s, border-color .16s; }
+  .train a:hover { transform: translateY(-2px); border-color: var(--lilac); text-decoration: none; }
+  .train a.fresh { animation: slidein .5s ease-out; border-color: color-mix(in srgb, var(--green) 55%, transparent); }
+  @keyframes slidein { from { opacity: 0; transform: translateX(-22px); } }
+  .train .hh { font: 650 15px var(--mono); color: var(--lilac); }
+  .train .sub { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+  .train a.light { border-style: dashed; border-color: color-mix(in srgb, var(--amber) 45%, transparent); }
   .train a.light .hh, .train .sub.light { color: var(--amber); }
   svg a { cursor: pointer; }
   svg a:hover rect, svg a:hover circle, svg a:hover path { opacity: 1; }
-  .txrow { border-bottom: 1px solid var(--line); }
-  .txrow summary { padding: 10px 20px; cursor: pointer; display: grid; gap: 14px; align-items: center;
-    grid-template-columns: minmax(130px, auto) 1fr auto; list-style: none; }
-  .txrow summary::-webkit-details-marker { display: none; }
-  .txrow summary:hover { background: rgba(167, 139, 250, .05); }
-  .txrow[open] summary { background: rgba(167, 139, 250, .07); }
-  .txrow .body { padding: 4px 20px 16px; }
-  .facts { display: grid; grid-template-columns: minmax(130px, auto) 1fr; gap: 1px 16px; padding: 4px 20px 16px; }
-  .facts .who { color: var(--muted); font: 600 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; padding: 9px 0; white-space: nowrap; }
-  .facts .pills { padding: 7px 0; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-  .facts .yes, .facts .no { border-radius: 999px; padding: 2px 10px; font-size: 12px; border: 1px solid transparent; }
-  .facts .yes { color: var(--green); border-color: rgba(0,255,65,.3); background: rgba(0,255,65,.06); }
-  .facts .no { color: var(--muted); border-color: var(--line); opacity: .75; }
-  .facts .no::before { content: "\00d7 "; opacity: .6; }
-  .facts .yes::before { content: "\2713 "; opacity: .7; }
-  .heat { display: grid; grid-template-columns: minmax(120px, auto) 1fr minmax(96px, auto); align-items: center; gap: 2px 14px; padding: 14px 20px 18px; }
-  .heat svg { width: 100%; height: 13px; display: block; }
+
+  /* ---------- heatmap ---------- */
+  .heat { display: grid; grid-template-columns: minmax(110px, auto) 1fr minmax(84px, auto); align-items: center; gap: 2px 12px; padding: 12px 18px 14px; }
+  .heat svg { width: 100%; height: 12px; display: block; }
   .heat .lab { font-size: 12px; white-space: nowrap; }
   .heat .cnt { font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .heat .hd { color: var(--muted); font: 600 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; }
-  .flow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; padding: 18px 20px; }
-  .flow .step { flex: 1; min-width: 200px; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--panel2); }
-  .flow .arrow { align-self: center; padding: 0 12px; color: var(--muted); font-size: 18px; }
-  /* burn tracker */
-  .banner { padding: 18px 20px 14px; font: 600 19px/1.5 var(--sans); letter-spacing: .01em; border-bottom: 1px solid var(--line); }
+  .heat .hd { color: var(--muted); font: 650 10px var(--mono); letter-spacing: .13em; text-transform: uppercase; }
+
+  /* ---------- facts ---------- */
+  .facts { display: grid; grid-template-columns: minmax(130px, auto) 1fr; gap: 1px 16px; padding: 6px 18px 14px; }
+  .facts .who { color: var(--muted); font: 650 10.5px var(--mono); letter-spacing: .1em; text-transform: uppercase; padding: 8px 0; white-space: nowrap; }
+  .facts .pills { padding: 6px 0; display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+  .facts .yes, .facts .no { border-radius: 999px; padding: 1px 9px; font-size: 11.5px; border: 1px solid transparent; }
+  .facts .yes { color: var(--green); border-color: color-mix(in srgb, var(--green) 30%, transparent); background: color-mix(in srgb, var(--green) 6%, transparent); }
+  .facts .no { color: var(--muted); border-color: var(--line); opacity: .8; }
+  .facts .no::before { content: "\00d7 "; opacity: .6; }
+  .facts .yes::before { content: "\2713 "; opacity: .7; }
+
+  /* ---------- flow strip ---------- */
+  .flow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; padding: 16px 18px; }
+  .flow .step { flex: 1; min-width: 180px; border: 1px solid var(--line); border-radius: 11px; padding: 11px 13px; background: var(--panel2); }
+  .flow .arrow { align-self: center; padding: 0 10px; color: var(--muted); font-size: 16px; }
+
+  /* ---------- burn ---------- */
+  .banner { padding: 16px 18px 12px; font: 600 18px/1.5 var(--sans); border-bottom: 1px solid var(--line); }
   .banner b { color: var(--amber); font-weight: 700; }
-  .banner .sub { display: block; margin-top: 4px; font: 500 12px/1.6 var(--mono); color: var(--muted); }
-  .banner .why { display: inline-block; margin-top: 6px; font: 500 12px/1.6 var(--mono); }
-  .toggle { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+  .banner .sub { display: block; margin-top: 3px; font: 500 11.5px/1.6 var(--mono); color: var(--muted); }
+  .banner .why { display: inline-block; margin-top: 5px; font: 500 11.5px/1.6 var(--mono); }
+  .toggle { display: inline-flex; gap: 5px; flex-wrap: wrap; }
   .toggle button { background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 999px;
-    padding: 2px 11px; font: 600 11px var(--mono); letter-spacing: .06em; cursor: pointer; }
+    padding: 1px 10px; font: 600 10.5px var(--mono); letter-spacing: .04em; cursor: pointer; }
   .toggle button:hover { color: var(--text); }
-  .toggle button.on { color: var(--text); border-color: var(--lilac); background: rgba(167, 139, 250, .12); }
-  .flame { display: inline-block; vertical-align: middle; width: 120px; height: 6px; border-radius: 999px; overflow: hidden; background: rgba(245, 196, 81, .1); }
-  .flame span { display: block; height: 100%; background: linear-gradient(90deg, #f5c451, #ff8a3d, #ff4d4d); }
-  .tag.fire { color: #ffb36b; border-color: rgba(255, 138, 61, .5); background: rgba(255, 120, 40, .08); margin: 0 0 0 8px; }
-  .rank { font-weight: 700; color: var(--lilac); }
+  .toggle button.on { color: var(--text); border-color: var(--lilac); background: color-mix(in srgb, var(--lilac) 12%, transparent); }
+  .flame { display: inline-block; vertical-align: middle; width: 78px; height: 5px; border-radius: 999px; overflow: hidden; background: color-mix(in srgb, var(--fire) 12%, transparent); }
+  .flame span { display: block; height: 100%; background: linear-gradient(90deg, var(--amber), var(--fire), #ff4d4d); }
+  .rank { font-weight: 700; color: var(--lilac); font-variant-numeric: tabular-nums; }
   .hot { color: var(--amber); }
   .tagline { color: var(--muted); font-size: 11px; }
   th.sort { cursor: pointer; user-select: none; }
   th.sort:hover { color: var(--text); }
-  .chart.tall svg { height: 170px; }
-  .cell .sub { color: var(--muted); font-size: 12px; line-height: 1.5; margin-top: 2px; }
-  @media (max-width: 640px) {
-    .lb th, .lb td { padding-left: 10px; padding-right: 10px; }
-    .tag.fire .word { display: none; }
-    .flame { width: 64px; }
-  }
-  .explain { padding: 4px 20px 8px; }
-  .explain p { margin: 10px 0; max-width: 880px; white-space: normal; }
-  .explain b { color: var(--lilac); font-weight: 600; }
-  footer { padding: 18px 20px 34px; color: var(--muted); font-size: 11px; text-align: center; letter-spacing: .05em; }
-  @media (max-width: 640px) { dl { grid-template-columns: 1fr; } dt { border-bottom: 0; padding-bottom: 0; } }
-  .theme-toggle { background: none; border: 1px solid var(--line); border-radius: 999px; color: var(--muted);
-    cursor: pointer; padding: 4px 10px; font-size: 15px; line-height: 1; transition: color .15s, border-color .15s; margin-left: auto; }
-  .theme-toggle:hover { color: var(--text); border-color: var(--lilac); }
-  [data-theme="light"] a { color: var(--purple); }
 
-  /* hero search: the first thing a newcomer sees */
-  .hero { padding: 36px 20px 28px; text-align: center; }
-  .hero h1 { font: 700 26px var(--sans); margin: 0 0 6px; letter-spacing: -.01em; }
-  .hero p { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
-  .hero form { max-width: 640px; margin: 0 auto; display: flex; min-width: 0; }
-  .hero form input { flex: 1; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px 0 0 12px; padding: 14px 18px; font: 500 15px var(--sans); outline: none; }
-  .hero form input::placeholder { color: var(--muted); opacity: .8; }
+  /* ---------- tx rows ---------- */
+  .txrow { border-bottom: 1px solid var(--line); }
+  .txrow summary { padding: 9px 18px; cursor: pointer; display: grid; gap: 12px; align-items: center;
+    grid-template-columns: minmax(120px, auto) 1fr auto; list-style: none; }
+  .txrow summary::-webkit-details-marker { display: none; }
+  .txrow summary:hover { background: var(--panel2); }
+  .txrow .body { padding: 2px 18px 12px; }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 34px 18px 24px; text-align: center; }
+  .hero h1 { font: 700 27px var(--sans); margin: 0 0 4px; letter-spacing: -.02em; }
+  .hero p { color: var(--muted); margin: 0 0 18px; font-size: 13.5px; }
+  .hero form { max-width: 620px; margin: 0 auto; display: flex; min-width: 0; }
+  .hero form input { flex: 1; background: var(--panel); color: var(--text); border: 1px solid var(--line2);
+    border-radius: 11px 0 0 11px; padding: 13px 16px; font: 500 14px var(--sans); outline: none; }
+  .hero form input::placeholder { color: var(--muted); opacity: .85; }
   .hero form input:focus { border-color: var(--lilac); }
-  .hero form button { background: var(--purple); color: #fff; border: 0; border-radius: 0 12px 12px 0; padding: 0 22px; font: 600 14px var(--sans); cursor: pointer; }
+  .hero form button { background: var(--purple); color: #fff; border: 0; border-radius: 0 11px 11px 0;
+    padding: 0 20px; font: 600 14px var(--sans); cursor: pointer; }
   .hero form button:hover { filter: brightness(1.08); }
+  .hero .quick { margin-top: 12px; font-size: 11.5px; color: var(--muted); display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
-  /* metric cards */
-  .stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-  .stat-card { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
-  .stat-card .label { color: var(--muted); font: 600 11px var(--sans); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 4px; }
-  .stat-card .value { font: 700 22px var(--mono); letter-spacing: -.02em; word-break: break-word; }
-  .stat-card .value.small { font: 600 15px var(--mono); }
-  .stat-card .sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
-  .stat-card.accent .value { color: var(--lilac); }
-
-  /* block detail tabs */
-  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); padding: 0 20px; overflow-x: auto; scrollbar-width: none; }
+  /* ---------- tabs ---------- */
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); padding: 0 14px; overflow-x: auto; scrollbar-width: none; }
   .tabs::-webkit-scrollbar { display: none; }
-  .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); padding: 10px 16px; font: 600 13px var(--sans); cursor: pointer; margin-bottom: -1px; white-space: nowrap; }
+  .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted);
+    padding: 10px 14px; font: 650 12.5px var(--sans); cursor: pointer; margin-bottom: -1px; white-space: nowrap; }
   .tabs button:hover { color: var(--text); }
   .tabs button.on { color: var(--text); border-bottom-color: var(--lilac); }
-  .tab-content { padding: 0; }
 
+  footer { padding: 16px 18px 30px; color: var(--muted); font-size: 10.5px; text-align: center; letter-spacing: .04em; }
+  footer a { color: var(--muted); }
   @media (max-width: 640px) {
-    .hero { padding: 24px 14px 20px; }
+    .hero { padding: 22px 12px 18px; }
     .hero h1 { font-size: 22px; }
-    .hero form input { padding: 12px 14px; font-size: 14px; }
-    .tabs { padding: 0 10px; }
-    .tabs button { padding: 10px 12px; }
+    dl { grid-template-columns: 1fr; }
+    dt { border-bottom: 0; padding-bottom: 0; }
+    .tag.fire .word { display: none; }
+    .flame { width: 54px; }
   }
 </style>
 </head>
@@ -246,7 +259,13 @@
   <div class="bar-top">
     <a class="brand" href="#/"><img src="/logo.svg" alt=""><b>Midwimble</b></a>
     <button id="hamburger" class="hamburger" aria-label="Menu" aria-expanded="false">&#9776;</button>
-    <nav id="mainnav"><a href="#/">overview</a><a href="#/blocks">blocks</a><a href="#/bonds">bonds</a><a href="#/burn">burn</a><a href="#/mempool">mempool</a><a href="#/privacy">privacy</a><a href="#/network">network</a><a href="#/api">api</a><a href="#/anchors">anchors</a><a href="#/relay">relay</a></nav>
+    <nav id="mainnav">
+      <a href="#/">overview</a><a href="#/blocks">blocks</a><a href="#/bonds">bonds</a><a href="#/burn">burn</a>
+      <span class="sep"></span>
+      <a href="#/mempool">mempool</a><a href="#/privacy">privacy</a><a href="#/network">network</a>
+      <span class="sep"></span>
+      <a href="#/anchors">anchors</a><a href="#/relay">relay</a><a href="#/api">api</a>
+    </nav>
     <button id="themeToggle" class="theme-toggle" title="Switch theme">&#9774;</button>
     <form id="search" autocomplete="off">
       <input id="q" placeholder="height, block hash, output commitment, kernel or bond id" spellcheck="false">
@@ -257,25 +276,23 @@
 </header>
 <main id="view"><div class="empty">loading…</div></main>
 <footer>
-  Served by this node from its own copy of the chain. JSON: <a href="/state">/state</a>,
-  /explorer/{blocks, block/…, output/…, kernel/…, bonds, bond/…, burn, search/…}.
+  Served by this node from its own copy of the chain · JSON: <a href="/state">/state</a>,
+  /explorer/{blocks, block/…, output/…, kernel/…, bonds, bond/…, burn, search/…}
 </footer>
 <script>
 "use strict";
 const COIN = 1e8;
 const THEME_COL = {
-  dark: { in: "#8b5cf6", out: "#00ff41", kern: "#a78bfa", faint: "rgba(167,139,250,.5)", amber: "#f5c451", green: "#00ff41", purple: "#8b5cf6", muted: "#9c98aa", text: "#f4f3f7" },
-  light: { in: "#7c3aed", out: "#059669", kern: "#8b5cf6", faint: "rgba(124,58,237,.35)", amber: "#d97706", green: "#059669", purple: "#7c3aed", muted: "#6b6899", text: "#1a1a2e" },
+  dark: { in: "#8b5cf6", out: "#00ff41", kern: "#a78bfa", faint: "rgba(167,139,250,.5)", amber: "#f5c451", fire: "#ff8a3d", green: "#00ff41", purple: "#8b5cf6", muted: "#938fa6", text: "#f2f1f6", bg: "#060609" },
+  light: { in: "#7c3aed", out: "#059669", kern: "#6d28d9", faint: "rgba(124,58,237,.35)", amber: "#b45309", fire: "#c2410c", green: "#059669", purple: "#7c3aed", muted: "#6b6899", text: "#16162a", bg: "#f7f6fb" },
 };
 function themeColors() { return THEME_COL[document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark']; }
 function toggleTheme() {
   const el = document.documentElement;
-  const current = el.getAttribute('data-theme');
-  const next = current === 'light' ? 'dark' : 'light';
+  const next = el.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
   el.setAttribute('data-theme', next);
   localStorage.setItem('explorer-theme', next);
   document.getElementById('themeToggle').textContent = next === 'light' ? '\u2600' : '\u263E';
-  const hash = location.hash || '#';
   route();
 }
 const view = document.getElementById("view");
@@ -295,31 +312,30 @@ function h(tag, attrs, ...kids) {
   }
   return n;
 }
-const short = (x, n = 10) => x ? x.slice(0, n) + "…" : "—";
+const short = (x, n = 10) => x ? String(x).slice(0, n) + "\u2026" : "\u2014";
 const num = x => Number(x).toLocaleString();
 function coins(units) {
-  const whole = Math.floor(units / COIN), frac = String(units % COIN).padStart(8, "0");
+  const whole = Math.floor(units / COIN), frac = String(Math.abs(units % COIN)).padStart(8, "0");
   return whole.toLocaleString() + "." + frac;
 }
-// A bond's value is in midstate's base units, not midwimble's, so coins()
-// is the wrong scale for it: it divides by midwimble's COIN (1e8) and showed
-// a 128 gMDS bond as "1,374.38953472 MDS". Midstate quotes bonds in gMDS,
-// 2^30 base units each, which is the unit the network's minimums are set in.
-// Midstate's base unit is the MDS itself, and the prefix is binary: a gMDS
-// is 2^30 of them, which is how the bond minimums are quoted (mainnet asks
-// 128 gMDS, the early phase 2^24 MDS). Large bonds read better in gMDS,
-// small ones in plain MDS, so the unit comes back with the number.
+// Bond values are quoted in midstate's units, not midwimble's: a gMDS is
+// 2^30 MDS, and the bond minimums are set in gMDS.
 const GMDS = 1073741824;
 function gmds(units) {
   const u = Number(units);
   if (u < GMDS) return u.toLocaleString() + " MDS";
   const n = u / GMDS;
-  return (Number.isInteger(n)
-    ? n.toLocaleString()
-    : n.toLocaleString(undefined, { maximumFractionDigits: 6 })) + " gMDS";
+  return (Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 6 })) + " gMDS";
+}
+// Headline figures: whole coins, trimmed decimals. The exact 8dp form is
+// for tables and amounts, where the trailing digits matter.
+function coinShort(units) {
+  const whole = units / COIN;
+  if (Math.abs(whole) >= 1000) return Math.round(whole).toLocaleString() + " MDW";
+  return whole.toLocaleString(undefined, { maximumFractionDigits: 4 }) + " MDW";
 }
 function dur(s) {
-  if (s == null) return "—";
+  if (s == null) return "\u2014";
   const a = Math.abs(s), sign = s < 0 ? "-" : "";
   if (a < 120) return sign + a + "s";
   if (a < 7200) return sign + Math.round(a / 60) + "m";
@@ -328,28 +344,45 @@ function dur(s) {
 }
 const ago = ts => dur(Math.max(0, Math.floor(Date.now() / 1000) - ts)) + " ago";
 const utc = ts => new Date(ts * 1000).toISOString().replace("T", " ").replace(".000Z", " UTC");
+const utcDay = ts => new Date(ts * 1000).toISOString().slice(0, 10);
+const pct = (x, d = 1) => x == null || !isFinite(x) ? "\u2014" : (x * 100).toFixed(d) + "%";
+const ratio = (a, b) => b ? a / b : null;
+const mdw = units => coinShort(units);
 function rate(perSec) {
   const units = ["", "k", "M", "G", "T"];
   let i = 0;
   while (perSec >= 1000 && i < units.length - 1) { perSec /= 1000; i++; }
-  return perSec.toFixed(perSec < 10 ? 2 : 1) + " " + units[i] + "attempts/s";
+  return perSec.toFixed(perSec < 10 ? 2 : 1) + " " + units[i] + " att/s";
 }
 const link = (kind, id, text) => h("a", { href: "#/" + kind + "/" + id, title: String(id) }, text ?? short(String(id)));
 const full = x => h("span", { class: "hash" }, x);
 const tag = (cls, text) => h("span", { class: "tag " + cls }, text);
-const section = (title, aside, ...body) => h("section", null, h("h2", null, title, aside ? h("span", { class: "aside" }, aside) : null), ...body);
+const section = (title, aside, ...body) => h("section", null,
+  h("h2", null, title, aside ? h("span", { class: "aside" }, aside) : null), ...body);
 function cell(k, v, small) { return h("div", { class: "cell" }, h("div", { class: "k" }, k), h("div", { class: "v" + (small ? " small" : "") }, v)); }
-// A metric card for the overview: a label, one figure, and a line of words.
-function statCard(label, value, sub, opts = {}) {
-  return h("div", { class: "stat-card" + (opts.accent ? " accent" : "") },
+function stat(k, v, sub) { const c = cell(k, v); if (sub) c.appendChild(h("div", { class: "sub" }, sub)); return c; }
+// A KPI tile: label, one big figure, one line of context.
+function kpi(label, value, sub, opts = {}) {
+  return h("div", { class: "kpi" + (opts.accent ? " hero-kpi" : "") },
     h("div", { class: "label" }, label),
-    h("div", { class: "value" + (opts.small ? " small" : "") }, value),
+    h("div", { class: "value" + (opts.small ? " sm" : "") }, value),
     sub ? h("div", { class: "sub" }, sub) : null);
 }
 function meter(fraction, hot) {
   const span = h("span");
   span.style.width = Math.min(100, Math.max(0.6, fraction * 100)) + "%";
   return h("div", { class: "meter" + (hot ? " hot" : "") }, span);
+}
+// Two-part bar: inputs vs outputs vs kernels, scaled to the busiest block.
+function spark(inp, out, kern, max, w = 200) {
+  const bar = h("div", { class: "bar", style: `width:${w}px` });
+  const cap = Math.max(max || (inp + out + kern), 1);
+  const seg = (n, colour) => n ? h("i", { style: `width:${(n / cap) * 100}%;background:${colour};opacity:.88` }) : null;
+  if (inp) bar.appendChild(seg(inp, themeColors().in));
+  if (out) bar.appendChild(seg(out, themeColors().out));
+  if (kern) bar.appendChild(seg(kern, themeColors().kern));
+  bar.title = inp + " in \u00b7 " + out + " out \u00b7 " + kern + " kernel" + (kern === 1 ? "" : "s");
+  return bar;
 }
 const dl = rows => h("dl", null, rows.filter(Boolean).map(([k, v]) => [h("dt", null, k), h("dd", null, v)]));
 const table = (heads, rows, numeric = []) => h("div", { class: "scroll" }, h("table", null,
@@ -360,7 +393,7 @@ async function get(path) {
   const r = await fetch(path);
   let body = null;
   try { body = await r.json(); } catch (_) {}
-  if (!r.ok) throw new Error((body && body.error) || (path + " → " + r.status));
+  if (!r.ok) throw new Error((body && body.error) || (path + " \u2192 " + r.status));
   return body;
 }
 function flash(text) {
@@ -374,12 +407,18 @@ function flash(text) {
 const SVG = "http://www.w3.org/2000/svg";
 function svg(tagName, attrs, ...kids) {
   const n = document.createElementNS(SVG, tagName);
-  for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v);
+  for (const [k, v] of Object.entries(attrs || {})) if (v != null) n.setAttribute(k, v);
   kids.forEach(k => n.appendChild(k));
   return n;
 }
+function svgLink(href, kid, title) {
+  const a = svg("a", { href });
+  if (title) kid.appendChild(svg("title")).textContent = title;
+  a.appendChild(kid);
+  return a;
+}
 function intervalChart(values, target, href) {
-  const W = 600, H = 120, max = Math.max(target * 3, ...values);
+  const W = 600, H = 120, max = Math.max(target * 3, ...values, 1);
   const bw = W / Math.max(values.length, 1);
   const s = svg("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none" });
   values.forEach((v, i) => {
@@ -392,22 +431,12 @@ function intervalChart(values, target, href) {
   s.appendChild(svg("line", { x1: 0, x2: W, y1: y, y2: y, stroke: themeColors().out, "stroke-dasharray": "4 4", "stroke-width": 1 }));
   return s;
 }
-function lineChart(values) {
+function lineChart(values, colour) {
   const W = 600, H = 120, lo = Math.min(...values), hi = Math.max(...values), span = (hi - lo) || 1;
   const pts = values.map((v, i) => `${(i / Math.max(values.length - 1, 1)) * W},${H - 6 - ((v - lo) / span) * (H - 12)}`);
   return svg("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none" },
-    svg("polyline", { points: pts.join(" "), fill: "none", stroke: themeColors().kern, "stroke-width": 2, "vector-effect": "non-scaling-stroke" }));
+    svg("polyline", { points: pts.join(" "), fill: "none", stroke: colour || themeColors().kern, "stroke-width": 2, "vector-effect": "non-scaling-stroke" }));
 }
-
-// Wraps a mark so clicking it goes somewhere. Everything the explorer
-// draws is a block, so almost everything should be clickable.
-function svgLink(href, kid, title) {
-  const a = svg("a", { href });
-  if (title) kid.appendChild(svg("title")).textContent = title;
-  a.appendChild(kid);
-  return a;
-}
-
 function barChart(values, { colour = null, log = false, label = String, href = null } = {}) {
   const W = 600, H = 120, f = log ? (v => Math.log10(1 + v)) : (v => v);
   const max = Math.max(...values.map(f), 1e-9), bw = W / Math.max(values.length, 1);
@@ -420,13 +449,13 @@ function barChart(values, { colour = null, log = false, label = String, href = n
   });
   return s;
 }
-/// A 0..1 series as a filled area, for shares that only make sense against
-/// their own ceiling.
+// A 0..1 series as a filled area, for shares that only make sense against
+// their own ceiling.
 function shareChart(values, colour, label = String) {
   const W = 600, H = 120, n = Math.max(values.length - 1, 1);
   const pts = values.map((v, i) => `${(i / n) * W},${H - 6 - Math.max(0, Math.min(1, v)) * (H - 12)}`);
   const s = svg("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none" },
-    svg("polygon", { points: `0,${H} ` + pts.join(" ") + ` ${W},${H}`, fill: colour, opacity: .18 }),
+    svg("polygon", { points: `0,${H} ` + pts.join(" ") + ` ${W},${H}`, fill: colour, opacity: .16 }),
     svg("polyline", { points: pts.join(" "), fill: "none", stroke: colour, "stroke-width": 2, "vector-effect": "non-scaling-stroke" }));
   values.forEach((v, i) => {
     const t = svg("rect", { x: (i / n) * W - 1, y: 0, width: 2, height: H, fill: "transparent" });
@@ -436,26 +465,116 @@ function shareChart(values, colour, label = String) {
   return s;
 }
 
+// Blocks as bubbles: time across, transactions up, area is bytes. The shape
+// of a chain's day is readable at a glance, which a table cannot do.
+function activityBubbles(blocks) {
+  const W = 900, H = 240, pad = 26;
+  const pts = blocks.slice().sort((a, b) => a.height - b.height);
+  if (!pts.length) return h("div", { class: "empty" }, "no blocks yet");
+  const kernMax = Math.max(1, ...pts.map(b => b.kernels || 0));
+  const sizeMax = Math.max(1, ...pts.map(b => b.size || 1));
+  const x = i => pad + (i / Math.max(pts.length - 1, 1)) * (W - pad * 2);
+  const y = k => H - pad - (k / kernMax) * (H - pad * 2);
+  const s = svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
+  // gridlines at 0, half, full transactions
+  [0, .5, 1].forEach(f => {
+    const yy = H - pad - f * (H - pad * 2);
+    s.appendChild(svg("line", { x1: pad, x2: W - pad, y1: yy, y2: yy, stroke: themeColors().muted, "stroke-width": .5, opacity: .18 }));
+    const t = svg("text", { x: pad - 6, y: yy + 3, fill: themeColors().muted, "font-size": 9, "text-anchor": "end" });
+    t.textContent = Math.round(kernMax * f);
+    s.appendChild(t);
+  });
+  pts.forEach((b, i) => {
+    const r = 3 + Math.sqrt((b.size || 1) / sizeMax) * 13;
+    const c = svg("circle", { cx: x(i), cy: y(b.kernels || 0), r, fill: b.merged ? themeColors().in : themeColors().out,
+      opacity: b.full_weight === false ? .28 : .55, stroke: b.full_weight === false ? themeColors().amber : "none", "stroke-width": b.full_weight === false ? 1 : 0 });
+    s.appendChild(svgLink("#/block/" + b.height, c,
+      "block " + b.height + "\n" + (b.kernels || 0) + " transactions \u00b7 " + num(b.size) + " B\n" + utc(b.timestamp) +
+      (b.merged ? "\nmerge-mined" : "") + (b.full_weight === false ? "\nover cap: adds 1/1024 of its work" : "")));
+  });
+  return h("div", { class: "viz" }, s, h("div", { class: "legend" },
+    h("span", null, h("i", { style: "background:" + themeColors().out }), "native"),
+    h("span", null, h("i", { style: "background:" + themeColors().in }), "merge-mined"),
+    h("span", null, "bubble area \u00b7 block bytes"),
+    h("span", null, "height \u00b7 transactions"),
+    h("span", null, h("i", { style: "background:transparent;border:1px solid " + themeColors().amber }), "over cap")));
+}
+
+// Bonds as packed bubbles: area is blocks signed in the window, colour is
+// headroom against the per-bond cap. A bond at its cap is the shape of the
+// whole rule in one picture.
+function bondBubbles(bonds, cap, size) {
+  const items = bonds.slice().sort((a, b) => (b.window_signed || 0) - (a.window_signed || 0));
+  if (!items.length) return h("div", { class: "empty" }, "no bonds registered");
+  const W = 900, pad = 14, top = 16, rowH = 100;
+  const maxV = Math.max(1, ...items.map(b => b.window_signed || 0));
+  const rOf = b => 11 + Math.sqrt((b.window_signed || 0) / maxV) * 33;
+  // Lay out first, then size the box: a wrapped row must not be clipped.
+  let x = pad, row = 0;
+  const placed = items.map(b => {
+    const r = rOf(b);
+    if (x + r * 2 > W - pad && x > pad) { x = pad; row++; }
+    const p = { b, r, cx: x + r, cy: top + row * rowH + r };
+    x += r * 2 + 10;
+    return p;
+  });
+  const H = Math.max(...placed.map(p => p.cy + p.r)) + 16;
+  const s = svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
+  placed.forEach(({ b, r, cx, cy }) => {
+    const over = b.window_signed > cap;
+    const fill = over ? themeColors().fire : b.eligible_now === false ? themeColors().muted : themeColors().out;
+    const c = svg("circle", { cx, cy, r, fill, opacity: over ? .42 : .26, stroke: fill, "stroke-width": over ? 2 : 1 });
+    s.appendChild(svgLink("#/bond/" + b.bond_id, c,
+      short(b.bond_id, 16) + "\n" + num(b.window_signed) + " of " + num(cap) + " blocks in the window" +
+      (b.value != null ? "\n" + gmds(b.value) : "") + "\n" + (b.eligible_now ? "eligible" : "not eligible") +
+      (over ? "\nover cap" : "")));
+    if (r > 19) {
+      const t = svg("text", { x: cx, y: cy + 3, fill: themeColors().text, "font-size": 10, "text-anchor": "middle", opacity: .85 });
+      t.textContent = b.window_signed;
+      s.appendChild(t);
+    }
+  });
+  return h("div", { class: "viz" }, s, h("div", { class: "legend" },
+    h("span", null, h("i", { style: "background:" + themeColors().out }), "under cap"),
+    h("span", null, h("i", { style: "background:" + themeColors().fire }), "over cap"),
+    h("span", null, h("i", { style: "background:" + themeColors().muted }), "not eligible"),
+    h("span", null, "area \u00b7 blocks signed in the last " + num(size || 1440) + " \u00b7 cap " + num(cap))));
+}
+
+// Minted vs withheld as one ring: the missing wedge is the burn.
+function donut(minted, withheld, label) {
+  const total = minted + withheld;
+  if (!total) return h("div", { class: "empty" }, "nothing minted yet");
+  const W = 220, R = 82, cx = W / 2, cy = W / 2, sw = 26;
+  const circ = 2 * Math.PI * (R - sw / 2);
+  const frac = withheld / total;
+  const s = svg("svg", { viewBox: `0 0 ${W} ${W}`, role: "img", style: "width:220px;height:220px;margin:0 auto" });
+  const ring = (colour, dash, offset, op) => svg("circle", { cx, cy, r: R - sw / 2, fill: "none", stroke: colour, "stroke-width": sw,
+    "stroke-dasharray": dash + " " + (circ - dash), "stroke-dashoffset": offset, transform: `rotate(-90 ${cx} ${cy})`, opacity: op || 1 });
+  s.appendChild(ring(themeColors().green, circ, 0, .22));
+  if (frac > 0) s.appendChild(ring(themeColors().fire, circ * frac, -circ * (1 - frac), .95));
+  const p = svg("text", { x: cx, y: cy - 2, fill: themeColors().fire, "font-size": 26, "font-weight": 700, "text-anchor": "middle" });
+  p.textContent = pct(frac, 1);
+  s.appendChild(p);
+  const t = svg("text", { x: cx, y: cy + 18, fill: themeColors().muted, "font-size": 10, "text-anchor": "middle" });
+  t.textContent = label || "of the schedule withheld";
+  s.appendChild(t);
+  return s;
+}
+
 // ---------- diagrams ------------------------------------------------------
-// Theme: SVG diagram colours draw from themeColors() / COL()->property so
-// they respond to data-theme="light|dark".  Add light entries to THEME_COL
-// when introducing new colour names; reuse COL().in/out/kern/faint/amber/
-// muted/text before adding keys.  rgba() fills with a different opacity can
-// use `.replace('.5', '.NN')` on the theme value.
-// Everything below draws what the chain actually records. On this chain a
-// block is one aggregated transaction: its inputs and kernels are flattened
-// and sorted, so nothing says which input funded which output. The anatomy
-// view draws that as the complete set of possibilities rather than leaving
-// it unsaid, because the absence of those edges IS the privacy property.
 const COL = () => themeColors();
 const slot = (i, n, from, to) => from + ((i + 0.5) * (to - from)) / Math.max(n, 1);
 
 // Ages colour an input by how long its output sat before this block spent
-// it: a cooling ramp, not a warning one -- an old coin is interesting, not
-// wrong.
+// it: a cooling ramp, not a warning one.
 function ageBands() { const c = themeColors(); return [[10, c.in, "\u226410 blocks"], [100, c.kern, "\u2264100"], [1000, "#c4b5fd", "\u22641k"], [Infinity, "#e9e4ff", ">1k"]]; }
 const ageColour = a => a == null ? "#4a4458" : (ageBands().find(([hi]) => a <= hi) || ageBands()[3])[1];
 
+// A block is one aggregated transaction: its inputs and kernels are
+// flattened and sorted, so nothing says which input funded which output.
+// The diagram draws that as the complete set of possibilities, because the
+// absence of those edges IS the privacy property.
 function anatomyDiagram(b) {
   const ins = b.inputs || [];
   const groups = (b.output_groups || []).map((g, gi) => ({ ...g, gi, coinbase: false }));
@@ -468,15 +587,14 @@ function anatomyDiagram(b) {
 
   const CAPN = 28;
   const si = ins.slice(0, CAPN), so = outs.slice(0, CAPN), sk = kerns.slice(0, CAPN);
-  const W = 760, pad = 24;
-  const H = Math.max(170, 2 * pad + Math.max(si.length, so.length, sk.length) * 20);
-  const xIn = 96, xKern = W / 2 - 30, xOut = W - 210;
+  const W = 760, pad = 26;
+  const H = Math.max(180, 2 * pad + Math.max(si.length, so.length, sk.length) * 20);
+  const xIn = 100, xKern = W / 2 - 30, xOut = W - 200;
   const s = svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
   const yi = i => slot(i, si.length, pad, H - pad);
   const yo = i => slot(i, so.length, pad, H - pad);
   const yk = i => slot(i, sk.length, pad + 6, H - pad - 6);
 
-  // Every pairing the chain leaves consistent, drawn behind everything else.
   const edges = si.length * so.length;
   if (edges && edges <= 420) {
     si.forEach((_, i) => so.forEach((_, j) => s.appendChild(svg("line", {
@@ -488,13 +606,10 @@ function anatomyDiagram(b) {
       fill: COL().faint, opacity: .07 }));
   }
 
-  // Kernels float in the middle on their own backing, deliberately wired to
-  // nothing: a kernel proves some transaction balanced, never which one.
   sk.forEach((k, i) => {
     const y = yk(i);
-    s.appendChild(svg("rect", { x: xKern - 30, y: y - 8, width: 60, height: 16, rx: 8, fill: "var(--bg)", opacity: .92 }));
-    const d = svg("path", { d: `M${xKern - 7},${y} L${xKern},${y - 6} L${xKern + 7},${y} L${xKern},${y + 6} Z`,
-      fill: COL().kern, opacity: .9 });
+    s.appendChild(svg("rect", { x: xKern - 30, y: y - 8, width: 60, height: 16, rx: 8, fill: themeColors().bg, opacity: .92 }));
+    const d = svg("path", { d: `M${xKern - 7},${y} L${xKern},${y - 6} L${xKern + 7},${y} L${xKern},${y + 6} Z`, fill: COL().kern, opacity: .9 });
     d.appendChild(svg("title")).textContent =
       (k.fee ? "fee " + coins(k.fee) : "no fee") + "\n" + k.excess + "\nproves a transaction balanced \u2014 not which one";
     s.appendChild(d);
@@ -509,30 +624,30 @@ function anatomyDiagram(b) {
   });
 
   // Outputs, boxed by the transaction that made them. Hovering a box lifts
-  // its members and dims the rest: the one link aggregation leaves standing.
+  // its members and dims the rest.
   const allOut = [];
   groups.forEach(g => {
     const mine = so.map((o, i) => [o, i]).filter(([o]) => o.g === g).map(([, i]) => i);
     if (!mine.length) return;
     const top = yo(mine[0]) - 11, bot = yo(mine[mine.length - 1]) + 11;
-    const stroke = g.coinbase ? "rgba(245,196,81,.45)" : COL().out.replace(')', ',.3)').replace('rgb', 'rgba');
-    const box = svg("rect", { x: xOut - 13, y: top, width: 186, height: bot - top, rx: 7,
-      fill: g.coinbase ? "rgba(245,196,81,.05)" : COL().out.replace(')', ',.05)').replace('rgb', 'rgba'), stroke, "stroke-width": 1 });
+    const stroke = g.coinbase ? COL().amber : COL().out;
+    const box = svg("rect", { x: xOut - 13, y: top, width: 176, height: bot - top, rx: 7,
+      fill: stroke, "fill-opacity": .06, stroke, "stroke-opacity": .35, "stroke-width": 1 });
     s.appendChild(box);
-    const t = svg("text", { x: xOut + 20, y: (top + bot) / 2 + 4, fill: g.coinbase ? themeColors().amber : COL().out, "font-size": 10, opacity: .9 });
+    const t = svg("text", { x: xOut + 18, y: (top + bot) / 2 + 4, fill: stroke, "font-size": 10, opacity: .9 });
     t.textContent = (g.coinbase ? "coinbase" : "tx") + " \u00b7 " + g.outputs + " out \u00b7 " + g.range_proof_bytes + "B";
     s.appendChild(t);
     const mates = mine.map(i => {
       const o = so[i];
       const r = svg("rect", { x: xOut - 7, y: yo(i) - 6, width: 14, height: 12, rx: 3,
-        fill: g.coinbase ? themeColors().amber : COL().out, opacity: .85 });
+        fill: g.coinbase ? COL().amber : COL().out, opacity: .9 });
       r.appendChild(svg("title")).textContent = o.c + (g.coinbase ? "\ncoinbase output, value public" : "\ncreated with " + (g.outputs - 1) + " sibling" + (g.outputs === 2 ? "" : "s"));
       s.appendChild(r);
       allOut.push(r);
       return r;
     });
     if (g.outputs > 1) {
-      const lift = on => allOut.forEach(r => r.setAttribute("opacity", mates.includes(r) ? (on ? 1 : .85) : (on ? .2 : .85)));
+      const lift = on => allOut.forEach(r => r.setAttribute("opacity", mates.includes(r) ? (on ? 1 : .9) : (on ? .2 : .9)));
       [box, t].forEach(e => { e.addEventListener("mouseenter", () => lift(true)); e.addEventListener("mouseleave", () => lift(false)); });
       box.setAttribute("style", "cursor: help");
     }
@@ -543,31 +658,23 @@ function anatomyDiagram(b) {
     t.textContent = txt;
     return t;
   };
-  s.appendChild(label(xIn, 14, ins.length + " inputs", COL().in, "middle"));
-  s.appendChild(label(xKern, 14, kerns.length + " kernels", COL().kern, "middle"));
+  s.appendChild(label(xIn, 16, ins.length + " inputs", COL().in, "middle"));
+  s.appendChild(label(xKern, 16, kerns.length + " kernels", COL().kern, "middle"));
   const funded = (b.outputs || []).length;
-  s.appendChild(label(xOut + 10, 14, funded + " outputs" + (b.coinbase ? " + coinbase" : ""), COL().out, "middle"));
-  s.appendChild(label(xKern, H - 6, "wired to nothing \u2014 a kernel proves a transaction balanced, never which one", themeColors().muted, "middle"));
+  s.appendChild(label(xOut + 10, 16, funded + " outputs" + (b.coinbase ? " + coinbase" : ""), COL().out, "middle"));
+  s.appendChild(label(xKern, H - 6, "a kernel proves a transaction balanced, never which one", themeColors().muted, "middle"));
   if (ins.length > CAPN) s.appendChild(label(xIn, H - 6, "+" + (ins.length - CAPN) + " more", themeColors().muted, "middle"));
 
-  // The coinbase is minted rather than funded, so it is not a candidate for
-  // any input and stays out of the count.
-  const pairings = ins.length * funded;
   return h("div", { class: "diagram" }, s,
     h("div", { class: "legend" },
       h("span", null, h("i", { style: "background:" + COL().out }), "output \u00b7 boxed with its transaction's siblings"),
-      h("span", null, h("i", { style: "background:" + themeColors().amber }), "coinbase \u00b7 value public"),
+      h("span", null, h("i", { style: "background:" + COL().amber }), "coinbase \u00b7 value public"),
       h("span", null, h("i", { style: "background:" + COL().kern }), "kernel"),
-      ...ageBands().map(([, c, t]) => h("span", null, h("i", { style: "background:" + c }), "input " + t))),
-    h("div", { class: "legend" }, h("span", null,
-      pairings
-        ? num(ins.length) + " inputs \u00d7 " + num(funded) + " funded outputs = " + num(pairings) + " assignments the chain leaves consistent"
-        : "nothing to pair: this block spends nothing")));
+      ...ageBands().map(([, c, t]) => h("span", null, h("i", { style: "background:" + c }), "input " + t))));
 }
 
-// Where this block's coins came from and went. The only transaction graph
-// this chain records: an output knows its creating block and its spending
-// block, and nothing in between.
+// Where this block's coins came from and went: an output knows its creating
+// block and its spending block, and nothing in between.
 function spendArcs(b) {
   const back = new Map(), fwd = new Map();
   (b.inputs || []).forEach(i => i.created_height != null && back.set(i.created_height, (back.get(i.created_height) || 0) + 1));
@@ -583,16 +690,14 @@ function spendArcs(b) {
     return W / 2 + (Math.sign(d) * Math.log10(1 + Math.abs(d)) / (span || 1)) * half;
   };
   const s = svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
-  s.appendChild(svg("line", { x1: 14, y1: mid, x2: W - 14, y2: mid, stroke: themeColors().faint.replace('.5', '.25'), "stroke-width": 1 }));
+  s.appendChild(svg("line", { x1: 14, y1: mid, x2: W - 14, y2: mid, stroke: themeColors().faint.replace(".5", ".25"), "stroke-width": 1 }));
   const arc = (hh, n, up, colour) => {
     const x = xOf(hh), lift = (up ? -1 : 1) * (mid - 18);
-    const p = svg("path", { d: `M${x},${mid} Q${(x + W / 2) / 2},${mid + lift} ${W / 2},${mid}`,
-      fill: "none", stroke: colour, "stroke-width": Math.min(4, 0.8 + Math.log2(1 + n)), opacity: .55 });
+    const d = `M${x},${mid} Q${(x + W / 2) / 2},${mid + lift} ${W / 2},${mid}`;
+    const p = svg("path", { d, fill: "none", stroke: colour, "stroke-width": Math.min(4, 0.8 + Math.log2(1 + n)), opacity: .55 });
     const tip = n + (n === 1 ? " output" : " outputs") + (up ? " created in block " : " spent in block ") + hh +
       " (" + Math.abs(hh - b.height) + " blocks " + (up ? "earlier" : "later") + ")";
-    // A 1-4px arc is a miserable click target, so each one carries an
-    // invisible fat stroke underneath purely to be hit.
-    const hit = svg("path", { d: p.getAttribute("d"), fill: "none", stroke: "transparent", "stroke-width": 14 });
+    const hit = svg("path", { d, fill: "none", stroke: "transparent", "stroke-width": 14 });
     const a = svgLink("#/block/" + hh, hit, tip);
     a.appendChild(p);
     s.appendChild(a);
@@ -616,13 +721,11 @@ function spendArcs(b) {
     h("span", null, "thickness is how many outputs share that block")));
 }
 
-// The ages of the outputs this block spent: fresh coinbase looks nothing
-// like a dormant coin waking up, and that difference is one of the few
-// patterns visible on a chain with no amounts and no addresses.
+// The ages of the outputs this block spent.
 function ageHistogram(b) {
   const ages = (b.inputs || []).map(i => i.created_height != null ? b.height - i.created_height : null).filter(x => x != null);
   if (!ages.length) return null;
-  const buckets = [[1, 1, "same\u2011ish"], [2, 10, "2\u201310"], [11, 100, "11\u2013100"], [101, 1000, "101\u20131k"],
+  const buckets = [[1, 1, "same"], [2, 10, "2\u201310"], [11, 100, "11\u2013100"], [101, 1000, "101\u20131k"],
                    [1001, 10000, "1k\u201310k"], [10001, Infinity, "10k+"]];
   const counts = buckets.map(([lo, hi]) => ages.filter(a => a >= lo && a <= hi).length);
   const W = 680, H = 96, max = Math.max(1, ...counts), bw = W / counts.length;
@@ -630,7 +733,7 @@ function ageHistogram(b) {
   counts.forEach((c, i) => {
     const bh = (c / max) * (H - 34);
     if (c) {
-      const r = svg("rect", { x: i * bw + bw * 0.3, y: H - 22 - bh, width: bw * 0.4, height: Math.max(2, bh), rx: 3, fill: COL().in, opacity: .8 });
+      const r = svg("rect", { x: i * bw + bw * 0.3, y: H - 22 - bh, width: bw * 0.4, height: Math.max(2, bh), rx: 3, fill: COL().in, opacity: .85 });
       r.appendChild(svg("title")).textContent = c + " spent after " + buckets[i][2] + " blocks";
       s.appendChild(r);
       const v = svg("text", { x: i * bw + bw / 2, y: H - 26 - bh, fill: themeColors().text, "font-size": 11, "text-anchor": "middle" });
@@ -645,8 +748,7 @@ function ageHistogram(b) {
     h("div", { class: "legend" }, h("span", null, "blocks between an output being created and this block spending it")));
 }
 
-// Who learns what, as pills rather than paragraphs: a reader should be able
-// to scan a row in a second and hover the diagram for the rest.
+// Who learns what, as pills rather than paragraphs.
 function facts(rows) {
   const grid = h("div", { class: "facts" });
   rows.forEach(([who, knows, blind]) => {
@@ -658,11 +760,8 @@ function facts(rows) {
   return grid;
 }
 
-// Dandelion++: a transaction does not go straight to the gossip network.
-// It walks a private stem, one peer at a time, and only then fluffs out to
-// everyone. The fluff probability is not fixed -- `Node::route_stem` sets it
-// to 100/outbound peers, clamped to 2..50 -- so a better-connected node
-// stems further before broadcasting.
+// Dandelion++: a transaction walks a private stem, one peer at a time, then
+// fluffs out to everyone.
 function dandelionDiagram(d) {
   const C = themeColors();
   const W = 760, H = 230, y = 118, x0 = 58, xF = 568;
@@ -675,9 +774,7 @@ function dandelionDiagram(d) {
     return e;
   };
   const step = (xF - x0) / (hops + 1);
-
   s.appendChild(svg("line", { x1: x0, y1: y, x2: xF, y2: y, stroke: C.purple, "stroke-width": 2, opacity: .45 }));
-  // The fluff: everyone this node gossips to, and onward.
   const fan = 11;
   for (let i = 0; i < fan; i++) {
     const a = -1.15 + (i / (fan - 1)) * 2.3, len = 74 + (i % 3) * 16;
@@ -687,18 +784,14 @@ function dandelionDiagram(d) {
   }
   const burst = dot(xF, y, 6, "none", 1);
   burst.setAttribute("stroke", C.out);
-  burst.setAttribute("fill", "none");
   burst.appendChild(svg("animate", { attributeName: "r", values: "6;64", dur: "1.6s", begin: "2.4s;burst.end+2.4s", id: "burst", repeatCount: "1" }));
   burst.appendChild(svg("animate", { attributeName: "opacity", values: ".9;0", dur: "1.6s", begin: "2.4s;burst.end+2.4s", repeatCount: "1" }));
   s.appendChild(burst);
 
-  // The explanation lives in the picture: hover a node and the caption says
-  // what that node knows. One line at a time beats six paragraphs nobody
-  // reads.
   const base = d.fluff_percent + "% chance of fluffing at each hop \u00b7 about " + d.expected_hops.toFixed(1) + " hops \u00b7 " + d.stem_timeout_secs + "s embargo";
   const caption = txt(W / 2, H - 10, base, C.muted, "middle", 11);
-  const tells = (node, what, colour) => {
-    const hit = svg("circle", { cx: node.cx, cy: y, r: 22, fill: "transparent", style: "cursor: help" });
+  const tells = (cx, what, colour) => {
+    const hit = svg("circle", { cx, cy: y, r: 22, fill: "transparent", style: "cursor: help" });
     hit.addEventListener("mouseenter", () => { caption.textContent = what; caption.setAttribute("fill", colour); });
     hit.addEventListener("mouseleave", () => { caption.textContent = base; caption.setAttribute("fill", C.muted); });
     s.appendChild(hit);
@@ -706,24 +799,17 @@ function dandelionDiagram(d) {
   for (let i = 0; i <= hops; i++) {
     const cx = x0 + step * i;
     s.appendChild(dot(cx, y, i === 0 ? 9 : 6, i === 0 ? C.text : C.purple, i === 0 ? 1 : .85));
-    if (i === 0) s.appendChild(txt(cx, y - 20, "you", C.text));
-    else s.appendChild(txt(cx, y - 18, "hop " + i, C.muted, "middle", 10));
-    tells({ cx }, i === 0
-      ? "you hold it \u00b7 nobody else has seen it yet"
-      : i === 1
-        ? "knows your address, and that you sent it \u2014 not that you wrote it"
-        : "knows only the hop before it \u00b7 " + i + " nodes from you now",
-      i === 0 ? C.text : C.kern);
+    s.appendChild(txt(cx, y - (i === 0 ? 20 : 18), i === 0 ? "you" : "hop " + i, i === 0 ? C.text : C.muted, "middle", i === 0 ? 11 : 10));
+    tells(cx, i === 0 ? "you hold it \u00b7 nobody else has seen it yet"
+      : i === 1 ? "knows your address, and that you sent it \u2014 not that you wrote it"
+      : "knows only the hop before it \u00b7 " + i + " nodes from you now", i === 0 ? C.text : C.kern);
   }
   s.appendChild(dot(xF, y, 9, C.out));
   s.appendChild(txt(xF, y - 22, "fluff", C.out));
-  tells({ cx: xF }, "broadcasts to everyone \u00b7 what they see is a node that probably did not write it", C.out);
-
-  // The travelling transaction.
+  tells(xF, "broadcasts to everyone \u00b7 what they see is a node that probably did not write it", C.out);
   const car = dot(0, 0, 4.5, C.amber);
   car.appendChild(svg("animateMotion", { dur: "2.4s", repeatCount: "indefinite", path: `M${x0},${y} L${xF},${y}` }));
   s.appendChild(car);
-
   s.appendChild(txt(W / 2, 30, "stem \u00b7 one peer at a time, nobody else sees it", C.kern));
   s.appendChild(txt(x0, H - 34, "your node", C.muted, "start", 10));
   s.appendChild(txt(xF + 86, H - 34, "the whole network", C.muted, "end", 10));
@@ -731,8 +817,7 @@ function dandelionDiagram(d) {
   return h("div", { class: "diagram" }, s);
 }
 
-// This node's peers, outbound (ones it chose) distinguished from inbound
-// (ones that chose it). Addresses arrive already stripped of their host.
+// This node's peers: direction is the line, transport is the dot.
 function peerMap(n) {
   const C = themeColors();
   const peers = n.peers || [];
@@ -754,33 +839,29 @@ function peerMap(n) {
       "\n" + p.transport + " \u00b7 " + p.addr;
     s.appendChild(c);
   });
-  const me = svg("circle", { cx, cy, r: 11, fill: C.text });
+  s.appendChild(svg("circle", { cx, cy, r: 11, fill: C.text }));
   s.appendChild(svg("circle", { cx, cy, r: 11, fill: "none", stroke: C.text, "stroke-width": 1, opacity: .5 },
     svg("animate", { attributeName: "r", values: "11;34", dur: "3s", repeatCount: "indefinite" }),
     svg("animate", { attributeName: "opacity", values: ".5;0", dur: "3s", repeatCount: "indefinite" })));
-  s.appendChild(me);
   const lab = svg("text", { x: cx, y: cy + 30, fill: C.text, "font-size": 11, "text-anchor": "middle" });
   lab.textContent = "this node";
   s.appendChild(lab);
-  // Direction is the line, transport is the dot: say so, rather than
-  // leaving a swatch to imply that green means outbound when it means
-  // webrtc.
   return h("div", { class: "diagram" }, s, h("div", { class: "legend" },
     h("span", null, h("i", { style: "background:" + COLOURS.tcp }), "tcp"),
     h("span", null, h("i", { style: "background:" + COLOURS.quic }), "quic"),
     h("span", null, h("i", { style: "background:" + COLOURS.webrtc }), "webrtc"),
-    h("span", null, "solid line, larger dot \u2014 outbound, a peer this node chose"),
-    h("span", null, "dashed line \u2014 inbound, a peer that dialled in"),
-    h("span", null, "addresses are shown without their host \u2014 see below")));
+    h("span", null, "solid line, larger dot \u2014 outbound"),
+    h("span", null, "dashed line \u2014 inbound"),
+    h("span", null, "addresses are shown without their host")));
 }
 
-// Who signed when, across the fork-choice window. Sparse by construction:
-// one tick per block, so the whole window costs at most `size` marks.
+// Who signed when, across the fork-choice window: one tick per block.
 function signerHeatmap(r) {
   const w = r.window;
   if (w.from == null || !r.bonds.length) return null;
   const size = Math.max(1, w.size), W = 1000;
-  const rows = r.bonds.filter(b => (b.window_blocks || []).length);
+  const rows = r.bonds.filter(b => (b.window_blocks || []).length)
+    .sort((a, b) => (b.window_signed || 0) - (a.window_signed || 0)).slice(0, 14);
   if (!rows.length) return h("div", { class: "empty" }, "no bond has signed inside the window yet");
   const grid = h("div", { class: "heat" },
     h("div", { class: "hd" }, "bond"),
@@ -789,63 +870,48 @@ function signerHeatmap(r) {
   rows.forEach(b => {
     const over = b.window_signed > w.cap;
     const s = svg("svg", { viewBox: `0 0 ${W} 13`, preserveAspectRatio: "none" });
-    s.appendChild(svg("rect", { x: 0, y: 0, width: W, height: 13, rx: 2, fill: themeColors().faint.replace('.5', '.07') }));
+    s.appendChild(svg("rect", { x: 0, y: 0, width: W, height: 13, rx: 2, fill: themeColors().faint.replace(".5", ".07") }));
     (b.window_blocks || []).forEach(hh => {
       const x = ((hh - w.from) / size) * W;
-      const t = svg("rect", { x: Math.max(0, Math.min(W - 2, x)), y: 1, width: 2, height: 11,
-        fill: over ? themeColors().amber : COL().out, opacity: .85 });
+      const t = svg("rect", { x: Math.max(0, Math.min(W - 2, x)), y: 1, width: 2, height: 11, fill: over ? themeColors().amber : COL().out, opacity: .85 });
       s.appendChild(svgLink("#/block/" + hh, t, "block " + hh));
     });
     grid.appendChild(h("div", { class: "lab" }, link("bond", b.bond_id, short(b.bond_id, 12))));
     grid.appendChild(s);
-    grid.appendChild(h("div", { class: "cnt", style: over ? "color: var(--amber)" : null },
-      num(b.window_signed) + " / " + num(w.cap)));
+    grid.appendChild(h("div", { class: "cnt", style: over ? "color: var(--amber)" : null }, num(b.window_signed) + " / " + num(w.cap)));
   });
   return h("div", null, grid, h("div", { class: "note" },
-    "One tick per block signed. "
-    + (w.cap_among === "in_use"
-      ? "Amber is past its cap: its next block would be invalid until its blocks are a day old or leave the window."
-      : "Amber is over cap: those blocks add 1/1024 of their work"
-        + (w.tapering ? " and mint cap/n." : ", and from the mainnet switch will mint cap/n."))
-    + " Clustered ticks are a mined run; an even spread is a shared window."));
+    "One tick per block signed" + (rows.length < r.bonds.filter(b => (b.window_blocks || []).length).length ? ", top " + rows.length + " bonds by blocks signed" : "") + ". " + (w.cap_among === "in_use"
+      ? "Amber is past its cap: its next block would be invalid."
+      : "Amber is over cap: those blocks add 1/1024 of their work.")));
 }
 
 // ---------- shared block table --------------------------------------------
-// A block that added only a sliver of its work to fork choice: over its
-// signer's cap (or unsigned). Valid, but one full-weight block on the block
-// below it outweighs it, so it is the first thing a reorganisation takes.
 const LIGHT_NOTE = "over cap: adds 1/1024 of its work to fork choice, so a full-weight block on the block below it would orphan it";
 const overCap = () => h("span", { class: "tag warn", title: LIGHT_NOTE }, "over cap");
 function blockRows(blocks) {
   return blocks.map(b => [
     link("block", b.height, num(b.height)),
     h("span", { class: "dim", title: utc(b.timestamp) }, ago(b.timestamp)),
-    dur(b.interval),
-    `${b.inputs} / ${b.outputs} / ${b.kernels}`,
+    b.interval != null ? dur(b.interval) : h("span", { class: "dim" }, "\u2014"),
+    spark(b.inputs, b.outputs, b.kernels),
+    h("span", { class: "dim" }, `${b.inputs} / ${b.outputs} / ${b.kernels}`),
     b.fees ? coins(b.fees) : h("span", { class: "dim" }, "0"),
-    num(b.size),
     b.miner ? link("bond", b.miner) : h("span", { class: "dim" }, "unsigned"),
-    [tag(b.merged ? "merged" : "native", b.merged ? "merge-mined" : "native"),
-     b.full_weight === false ? overCap() : null,
-     b.registrations ? tag("ok", "+" + b.registrations + " bond") : null],
+    h("span", null,
+      tag(b.merged ? "merged" : "native", b.merged ? "merged" : "native"),
+      b.full_weight === false ? overCap() : null,
+      b.registrations ? tag("ok", "+" + b.registrations) : null),
   ]);
 }
-// The newest blocks as a strip you can click straight into.
-//
-// The strip is kept, not rebuilt. A refresh that brings no new block must
-// touch nothing: rebuilding it every ten seconds would throw away the
-// reader's scroll position and whatever they were hovering, and would make
-// the train lurch when the chain had not moved at all. So the element
-// persists across renders, new blocks are inserted at the front, and only
-// those carry the slide-in. `view.replaceChildren` moves this node rather
-// than copying it, so re-appending the same element keeps its children.
+const BLOCK_HEADS = ["height", "age", "interval", "shape", "in / out / kern", "fees", "signed by", "work"];
+const blockTable = blocks => blocks.length ? table(BLOCK_HEADS, blockRows(blocks), [4, 5]) : h("div", { class: "empty" }, "no blocks yet");
+
+// The newest blocks as a strip you can click straight into. The strip is kept
+// across refreshes, not rebuilt, so scroll position and hovers survive.
 let trainEl = null, trainTop = null, trainTopHash = null;
 const TRAIN_CARDS = 14;
 function blockTrain(blocks) {
-  // Detaching a scrollable element resets its scroll, and `replaceChildren`
-  // detaches this one on every render. Keeping the node is not enough on its
-  // own: where the reader had scrolled to has to be put back after it is
-  // re-attached.
   const keep = trainEl ? trainEl.scrollLeft : 0;
   let rebuilt = false;
   const card = b => {
@@ -855,10 +921,8 @@ function blockTrain(blocks) {
       h("div", { class: "hh" }, num(b.height)),
       age,
       h("div", { class: "sub" }, (b.kernels || 0) + " tx \u00b7 " + num(b.size) + " B"),
-      light ? h("div", { class: "sub light" }, "over cap")
-            : h("div", { class: "sub" }, b.merged ? "merge-mined" : "native"));
-    el._ts = b.timestamp;
-    el._age = age;
+      light ? h("div", { class: "sub light" }, "over cap") : h("div", { class: "sub" }, b.merged ? "merge-mined" : "native"));
+    el._ts = b.timestamp; el._age = age;
     return el;
   };
   const rebuild = () => {
@@ -868,55 +932,29 @@ function blockTrain(blocks) {
   };
   if (!blocks.length) return trainEl || (trainEl = h("div", { class: "train" }));
   const top = blocks[0];
-  if (!trainEl || trainTop == null) {
-    rebuild();
-  } else if (top.height < trainTop || (top.height === trainTop && top.hash !== trainTopHash)) {
-    // A reorg replaced what the strip is showing, so it is no longer the
-    // chain: start again rather than animate blocks that were never added.
-    rebuild();
-  } else {
-    // Oldest first, so each lands at the front in the order it arrived.
-    blocks
-      .filter(b => b.height > trainTop)
-      .sort((a, b) => a.height - b.height)
-      .forEach(b => {
-        const el = card(b);
-        el.classList.add("fresh");
-        trainEl.insertBefore(el, trainEl.firstChild);
-        // Dropped once it has played, so moving the strip into a freshly
-        // rendered page cannot replay it.
-        setTimeout(() => el.classList.remove("fresh"), 700);
-      });
+  if (!trainEl || trainTop == null) rebuild();
+  else if (top.height < trainTop || (top.height === trainTop && top.hash !== trainTopHash)) rebuild();
+  else {
+    blocks.filter(b => b.height > trainTop).sort((a, b) => a.height - b.height).forEach(b => {
+      const el = card(b);
+      el.classList.add("fresh");
+      trainEl.insertBefore(el, trainEl.firstChild);
+      setTimeout(() => el.classList.remove("fresh"), 600);
+    });
     while (trainEl.children.length > TRAIN_CARDS) trainEl.removeChild(trainEl.lastChild);
   }
-  // Ages would otherwise freeze at whatever they were when the card was
-  // made, so they are refreshed in place rather than by rebuilding.
   for (const el of trainEl.children) if (el._age) el._age.textContent = ago(el._ts);
-  trainTop = top.height;
-  trainTopHash = top.hash;
-  // After a rebuild the strip is a different chain, so it starts at the
-  // newest; otherwise the reader goes back where they were, once the node
-  // is attached again.
+  trainTop = top.height; trainTopHash = top.hash;
   const scroll = rebuilt ? 0 : keep;
-  if (scroll) {
-    const el = trainEl;
-    requestAnimationFrame(() => { el.scrollLeft = scroll; });
-  }
+  if (scroll) { const el = trainEl; requestAnimationFrame(() => { el.scrollLeft = scroll; }); }
   return trainEl;
 }
-
-const BLOCK_HEADS = ["height", "age", "interval", "in / out / kern", "fees", "bytes", "signed by", "work"];
-const blockTable = blocks => blocks.length ? table(BLOCK_HEADS, blockRows(blocks), [4, 5]) : h("div", { class: "empty" }, "no blocks yet");
-
 // ---------- pages ----------------------------------------------------------
-// Hero search: the first thing on the page, and the way in for anyone who does
-// not know the URL scheme yet. Same endpoint as the header search, so it lands
-// on the same pages. The draft is kept across the 10s refresh (overview
-// rebuilds the whole page), so a half-typed query is not eaten.
+// Hero search: the way in for anyone who does not know the URL scheme.
 let heroDraft = "";
 function heroSearch() {
   const input = h("input", {
-    placeholder: "Height, block hash, output, kernel or bond id…",
+    placeholder: "Height, block hash, output, kernel or bond id\u2026",
     spellcheck: "false", autocomplete: "off", value: heroDraft, "aria-label": "search the chain",
   });
   input.addEventListener("input", () => { heroDraft = input.value; });
@@ -932,99 +970,101 @@ function heroSearch() {
   } }, input, h("button", { type: "submit" }, "Search"));
   return h("div", { class: "hero" },
     h("h1", null, "Midwimble Explorer"),
-    h("p", null, "Search blocks, outputs, kernels, or bonds on the MimbleWimble privacy chain"),
-    form);
+    h("p", null, "Blocks, outputs, kernels and bonds on the MimbleWimble privacy chain"),
+    form,
+    h("div", { class: "quick" },
+      h("a", { href: "#/blocks" }, "latest blocks"),
+      h("a", { href: "#/bonds" }, "mining bonds"),
+      h("a", { href: "#/burn" }, "burn tracker"),
+      h("a", { href: "#/privacy" }, "privacy metrics"),
+      h("a", { href: "#/api" }, "json api")));
 }
 
 async function overview() {
-  const [s, recent, bonds, emission] = await Promise.all([get("/state"), get("/explorer/blocks?count=100"), get("/explorer/bonds"), get("/explorer/chart/emission?interval=1000")]);
+  const [s, recent, bonds, burn] = await Promise.all([
+    get("/state"), get("/explorer/blocks?count=120"), get("/explorer/bonds"),
+    get("/explorer/burn").catch(() => null),
+  ]);
   const blocks = recent.blocks;
   const timed = blocks.filter(b => b.interval != null).slice().reverse();
   const intervals = timed.map(b => b.interval);
   const avg = intervals.length ? intervals.reduce((a, b) => a + b, 0) / intervals.length : null;
   const bits = blocks.length ? blocks[0].difficulty_bits : 0;
   const hashrate = avg ? Math.pow(2, bits) / Math.max(avg, 1) : null;
-  const supplyCard = statCard("supply", coins(s.supply), null, { accent: true });
-  supplyCard.appendChild(meter(s.supply / s.max_supply));
   const supplyPct = s.supply / s.max_supply;
-  supplyCard.appendChild(h("div", { class: "sub" }, (supplyPct < 0.0001 ? "<0.01%" : pct(supplyPct)) + " of the maximum"));
+
+  const supplyTile = kpi("supply", coinShort(s.supply),
+    (supplyPct < 0.0001 ? "<0.01%" : pct(supplyPct)) + " of " + coinShort(s.max_supply), { accent: true });
+  supplyTile.appendChild(meter(supplyPct));
+
   // "How long until I find a block at my hashrate" is the question a new
-  // miner actually has, so the card carries the calculator, not just a number.
-  const calcCard = (() => {
-    const hashInput = h("input", { type: "number", min: "1", value: "1000000", style: "width:110px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:3px 7px;font:500 12px var(--mono);text-align:right" });
-    // At this difficulty a desktop miner finds a block inside a second, and
-    // "0s" reads as broken, so anything under one second says so.
+  // miner actually has, so the tile carries the calculator.
+  const calcTile = (() => {
+    const input = h("input", { type: "number", min: "1", value: "1000000",
+      style: "width:92px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:2px 6px;font:500 11px var(--mono);text-align:right" });
     const wait = hr => {
       const secs = Math.round(Math.pow(2, bits) / (hr || 1));
-      return bits ? (secs < 1 ? "<1s" : dur(secs)) : "—";
+      return bits ? (secs < 1 ? "<1s" : dur(secs)) : "\u2014";
     };
-    const expectSpan = h("span", { style: "color:var(--amber)" }, wait(1e6));
-    hashInput.addEventListener("input", () => { expectSpan.textContent = wait(Number(hashInput.value)); });
-    return statCard("expected time", expectSpan, h("span", null, "at ", hashInput, " att/s"));
+    const out = h("span", { style: "color:var(--amber)" }, wait(1e6));
+    input.addEventListener("input", () => { out.textContent = wait(Number(input.value)); });
+    return kpi("expected time", out, h("span", null, "at ", input, " att/s"));
   })();
-  const newBlocksCard = statCard("new blocks", String(newSinceLoad), "since this page loaded");
-  newBlocksEl = newBlocksCard.querySelector(".value");
-  const stats = h("div", { class: "stat-cards" },
-    statCard("height", num(s.height), "chain tip"),
-    statCard("last block", ago(s.timestamp), utc(s.timestamp)),
-    supplyCard,
-    statCard("block reward", coins(s.block_reward), "MDW per block", { accent: true, small: true }),
-    statCard("era · next halving", `${s.era} · ${s.next_halving_height ? num(s.next_halving_height) : "none"}`, s.next_halving_height ? "at that height" : "no halving left", { small: true }),
-    statCard("difficulty", bits.toFixed(2) + " bits", "expected attempts a block"),
-    statCard("network rate", hashrate ? rate(hashrate) : "—", "estimated over the last " + intervals.length + " blocks", { small: true }),
-    calcCard,
-    statCard("avg block time", avg ? dur(Math.round(avg)) : "—", avg ? "last " + intervals.length + " blocks" : null),
-    statCard("mempool", s.mempool_count + " tx", num(s.mempool_weight) + " weight waiting", { small: true }),
-    statCard("utxos / kernels", num(s.utxos) + " / " + num(s.kernels), "unspent outputs · transaction proofs", { small: true }),
-    statCard("peers", String(s.peers.length), "connected nodes"),
-    newBlocksCard,
-    statCard("this node", s.mining ? "mining" : "not mining", s.syncing ? "syncing" : "in sync", { small: true }));
-  const charts = h("div", { class: "charts" },
-    h("div", { class: "chart" }, h("div", { class: "k" }, "block interval · last " + intervals.length + " · dashed = 60s · click a bar"),
-      intervalChart(intervals, 60, i => "#/block/" + timed[i].height)),
-    h("div", { class: "chart" }, h("div", { class: "k" }, "difficulty (bits) · last " + blocks.length), lineChart(blocks.map(b => b.difficulty_bits).reverse())));
-  // Emission: how much of the scheduled supply was actually minted (from burn tracker series).
-  const emissionDays = (emission.days || []).filter(d => d.scheduled > 0);
-  const emissionRatio = emissionDays.map(d => d.minted / d.scheduled);
-  const emissionCharts = emissionDays.length ? h("div", { class: "charts" },
-    h("div", { class: "chart" },
-      h("div", { class: "k" }, "emission · scheduled vs actual · daily since switch"),
-      shareChart(emissionRatio, "#f5c451", (v, i) => {
-        const d = emissionDays[i];
-        return utcDay(d.day) + " · " + (v * 100).toFixed(1) + "% of scheduled · actual " + coins(d.minted) + " / scheduled " + coins(d.scheduled);
-      }))) : null;
-  // The tip ends a run of over-cap blocks: one full-weight block on the
-  // block before them outweighs the lot, and producers build there.
+
+  const newTile = kpi("new blocks", "0", "since this page loaded");
+  newBlocksEl = newTile.querySelector(".value");
+
+  const kpis = h("div", { class: "kpis" },
+    kpi("height", num(s.height), "chain tip"),
+    kpi("last block", ago(s.timestamp), utc(s.timestamp)),
+    supplyTile,
+    kpi("block reward", coinShort(s.block_reward), "per block", { accent: true, small: true }),
+    kpi("era \u00b7 next halving", `${s.era} \u00b7 ${s.next_halving_height ? num(s.next_halving_height) : "none"}`, s.next_halving_height ? "at that height" : "no halving left", { small: true }),
+    kpi("difficulty", bits.toFixed(2) + " bits", "expected attempts a block"),
+    kpi("network rate", hashrate ? rate(hashrate) : "\u2014", "over the last " + intervals.length + " blocks", { small: true }),
+    calcTile,
+    kpi("avg block time", avg ? dur(Math.round(avg)) : "\u2014", avg ? "last " + intervals.length + " blocks" : null),
+    kpi("mempool", s.mempool_count + " tx", num(s.mempool_weight) + " weight waiting", { small: true }),
+    kpi("utxos / kernels", num(s.utxos) + " / " + num(s.kernels), "unspent outputs \u00b7 proofs", { small: true }),
+    kpi("peers", String(s.peers.length), "connected nodes"),
+    newTile,
+    kpi("this node", s.mining ? "mining" : "not mining", s.syncing ? "syncing" : "in sync", { small: true }));
+
+  const activity = section("Chain activity", "last " + blocks.length + " blocks \u00b7 refreshes every 10s",
+    activityBubbles(blocks),
+    h("div", { class: "charts" },
+      h("div", { class: "chart" }, h("div", { class: "k" }, "block interval \u00b7 dashed = 60s"), intervalChart(intervals, 60, i => "#/block/" + timed[i].height)),
+      h("div", { class: "chart" }, h("div", { class: "k" }, "difficulty \u00b7 bits"), lineChart(blocks.map(b => b.difficulty_bits).reverse()))));
+
   const run = s.orphaning;
   const runNote = run && h("div", { class: "note" },
     h("span", { class: "hot" }, num(run.replaces) + " over-cap block" + (run.replaces === 1 ? "" : "s") + " at the tip. "),
-    "Together they add less to fork choice than one full-weight block, so a full-weight block on ",
-    link("block", run.height - 1, "block " + num(run.height - 1)),
-    " would orphan them all.");
+    "Together they add less to fork choice than one full-weight block on ",
+    link("block", run.height - 1, "block " + num(run.height - 1)), ".");
+
+  const burnStrip = burn && burn.active && burn.burned > 0
+    ? h("div", { class: "note" }, h("b", { style: "color:var(--amber)" }, coinShort(burn.burned)), " burned so far \u00b7 effective max supply ",
+        h("b", null, coinShort(burn.effective_max_supply)), " \u00b7 ", h("a", { href: "#/burn" }, "why \u2192"))
+    : null;
+
   const hero = heroSearch();
   const wasTyping = !!(document.activeElement && document.activeElement.closest && document.activeElement.closest(".hero"));
-  view.replaceChildren(
-    hero,
-    stats,
-    section("Chain activity", "refreshes every 10s", charts, emissionCharts),
-    section("Latest blocks", h("a", { href: "#/blocks" }, "all blocks →"), blockTrain(blocks), blockTable(blocks.slice(0, 15)), runNote),
-    section("Mining bonds", h("a", { href: "#/bonds" }, "details →"), bondTable(bonds)));
-  // The page is rebuilt whole every 10s; put the caret back where it was.
+  view.replaceChildren(hero, kpis, burnStrip, activity,
+    section("Latest blocks", h("a", { href: "#/blocks" }, "all blocks \u2192"), blockTrain(blocks), blockTable(blocks.slice(0, 15)), runNote),
+    section("Mining bonds", h("a", { href: "#/bonds" }, "details \u2192"),
+      bondBubbles(bonds.bonds, bonds.window.cap, bonds.window.size), bondTable(bonds, 8)));
   if (wasTyping) {
     const el = hero.querySelector("input");
     el.focus();
     el.setSelectionRange(el.value.length, el.value.length);
   }
   schedule(overview, 10000);
-  // Live block events via SSE.
   if (!sseConn) {
     newSinceLoad = 0;
     try {
       sseConn = new EventSource("/explorer/events");
       sseConn.addEventListener("block", () => {
         newSinceLoad++;
-        // Counted in place, so the figure moves as blocks land rather than
-        // waiting for the next full refresh.
         if (newBlocksEl && newBlocksEl.isConnected) newBlocksEl.textContent = String(newSinceLoad);
       });
       sseConn.onerror = () => { if (sseConn) { sseConn.close(); sseConn = null; } };
@@ -1038,10 +1078,20 @@ async function blocksPage(m) {
   const r = await get(q);
   const blocks = r.blocks;
   const top = blocks.length ? blocks[0].height + 1 : 0, bottom = blocks.length ? blocks[blocks.length - 1].height : 0;
-  const newer = top < r.tip ? h("a", { class: "btn", href: top + 50 >= r.tip ? "#/blocks" : "#/blocks/" + (top + 50) }, "← newer") : h("span", { class: "btn off" }, "← newer");
-  const older = bottom > 0 ? h("a", { class: "btn", href: "#/blocks/" + bottom }, "older →") : h("span", { class: "btn off" }, "older →");
+  const newer = top < r.tip ? h("a", { class: "btn", href: top + 50 >= r.tip ? "#/blocks" : "#/blocks/" + (top + 50) }, "\u2190 newer") : h("span", { class: "btn off" }, "\u2190 newer");
+  const older = bottom > 0 ? h("a", { class: "btn", href: "#/blocks/" + bottom }, "older \u2192") : h("span", { class: "btn off" }, "older \u2192");
+  const span = blocks.length ? blocks[0].height - blocks[blocks.length - 1].height + 1 : 0;
+  const kern = blocks.reduce((a, b) => a + (b.kernels || 0), 0);
+  const bytes = blocks.reduce((a, b) => a + (b.size || 0), 0);
   view.replaceChildren(
-    h("div", { class: "title" }, h("h1", null, "Blocks"), h("span", { class: "dim" }, blocks.length ? `${num(bottom)} – ${num(top - 1)} of ${num(r.tip)}` : ""), h("div", { class: "pager" }, newer, older)),
+    h("div", { class: "title" }, h("h1", null, "Blocks"),
+      h("span", { class: "dim" }, blocks.length ? `${num(bottom)} \u2013 ${num(top - 1)} of ${num(r.tip)}` : ""),
+      h("div", { class: "pager" }, newer, older)),
+    h("div", { class: "kpis" },
+      kpi("showing", num(blocks.length), "blocks of " + num(r.tip), { small: true }),
+      kpi("transactions", num(kern), "in this page"),
+      kpi("bytes", num(bytes), "on chain in this page", { small: true }),
+      kpi("chain tip", num(r.tip), "this node")),
     section("Blocks", null, blockTable(blocks)));
   if (before == null) schedule(() => blocksPage(m), 10000);
 }
@@ -1055,93 +1105,83 @@ function outputRows(outputs) {
   ]);
 }
 
-// How settled a block is (`burial` in explorer.rs): its confirmations, and
-// how many of them counted in full in fork choice. Only those cost anything
-// to undo; over-cap blocks on top add a sliver each, and a block with none
-// at full weight can be orphaned by a single full-weight block.
+// How settled a block is: its confirmations, and how many counted in full.
 function burialText(x) {
   const n = x.confirmations, f = x.full_weight_confirmations;
   const text = num(n) + " confirmation" + (n === 1 ? "" : "s");
-  if (x.finalized) return text + " · finalized";
-  return f == null ? text : text + " · " + num(f) + " at full weight";
+  if (x.finalized) return text + " \u00b7 finalized";
+  return f == null ? text : text + " \u00b7 " + num(f) + " at full weight";
 }
 function burialNote(x) {
   if (x.finalized) return "below the finalized checkpoint: no reorganisation can replace it";
   const f = x.full_weight_confirmations;
   if (f == null) return "deeper than any reorganisation this node will make";
-  if (f === 0) return "nothing at full weight yet: one full-weight block on an earlier block could replace it";
+  if (f === 0) return "no full-weight block yet: one could replace it";
   return "replacing it takes a branch heavier than " + num(f) + " full-weight block" + (f === 1 ? "" : "s");
 }
 
-// The header answers "what is this block"; the transaction body is where the
-// interesting part is. Tabs keep the top of the page short for someone who has
-// just followed a link. The choice is remembered between blocks, since a
-// reader comparing kernels usually wants the next block's kernels too.
 let blockTab = "overview";
 
 async function blockPage(m) {
   const b = await get("/explorer/block/" + m[1]);
-  const prev = b.height > 0 ? h("a", { class: "btn", href: "#/block/" + (b.height - 1) }, "← " + num(b.height - 1)) : h("span", { class: "btn off" }, "←");
-  const next = b.next_hash ? h("a", { class: "btn", href: "#/block/" + (b.height + 1) }, num(b.height + 1) + " →") : h("span", { class: "btn off" }, "tip");
+  const prev = b.height > 0 ? h("a", { class: "btn", href: "#/block/" + (b.height - 1) }, "\u2190 " + num(b.height - 1)) : h("span", { class: "btn off" }, "\u2190");
+  const next = b.next_hash ? h("a", { class: "btn", href: "#/block/" + (b.height + 1) }, num(b.height + 1) + " \u2192") : h("span", { class: "btn off" }, "tip");
   const cb = b.coinbase;
-  const weight = b.full_weight == null ? null
-    : b.full_weight ? h("span", null, tag("ok", "full weight"), h("span", { class: "dim" }, " all its work counts in fork choice"))
-    : h("span", null, overCap(), h("span", { class: "dim" }, " counts 1/1024 of its work: a full-weight block on block " + num(b.height - 1) + " would orphan it"));
+  const weight = b.full_weight == null ? tag("native", "unknown weight")
+    : b.full_weight ? tag("ok", "full weight")
+    : overCap();
 
   const headerParts = [
-    section("Header", burialText(b), dl([
+    section("Block", burialText(b), h("div", { class: "grid" },
+      stat("transactions", num(b.kernels.length)),
+      stat("inputs", num(b.inputs.length)),
+      stat("outputs", num(b.outputs.length), (b.output_groups || []).length + " range proof" + ((b.output_groups || []).length === 1 ? "" : "s")),
+      stat("fees", coins(b.fees) + " MDW"),
+      stat("size", num(b.size) + " B", num(b.weight || b.size) + " weight"),
+      stat("difficulty", b.difficulty_bits.toFixed(2) + " bits", num(b.work) + " attempts", true),
+      stat("fork choice", weight, b.full_weight === false ? "counts 1/1024 of its work" : "all its work counts"),
+      stat("settled", burialText(b), burialNote(b), true))),
+    section("Header", null, dl([
       ["hash", full(b.hash)],
       ["previous", b.height > 0 ? link("block", b.height - 1, b.prev_hash) : full(b.prev_hash)],
       ["next", b.next_hash ? link("block", b.height + 1, b.next_hash) : h("span", { class: "dim" }, "none yet")],
       ["time", utc(b.timestamp) + (b.interval != null ? "  (+" + dur(b.interval) + " after previous)" : "")],
-      ["difficulty", b.difficulty_bits.toFixed(2) + " bits · " + num(b.work) + " expected attempts"],
       ["nonce", num(b.nonce)],
-      ["size", num(b.size) + " bytes"],
       ["state root", full(b.state_root)],
       ["previous midstate", full(b.prev_midstate)],
     ])),
-    section("Proof of work & signer", null, dl([
+    section("Proof of work", null, dl([
       ["work", b.merged ? tag("merged", "merge-mined with midstate") : tag("native", "native")],
       b.merged && ["midstate block", full(b.merged.midstate_block)],
       b.merged && ["midstate time", utc(b.merged.midstate_timestamp)],
-      b.merged && ["commit", full(b.merged.commit_address) ],
-      ["signed by", b.miner ? link("bond", b.miner.bond_id, b.miner.bond_id) : h("span", { class: "dim" }, "unsigned")],
-      weight && ["fork choice", weight],
-      ["settled", h("span", null, burialText(b), h("span", { class: "dim" }, " · " + burialNote(b)))],
+      b.merged && ["commit", full(b.merged.commit_address)],
+      ["signed by", b.miner ? link("bond", b.miner.bond_id, short(b.miner.bond_id, 22)) : h("span", { class: "dim" }, "unsigned")],
       ...b.registrations.map(r => ["registers bond", h("span", null, link("bond", r.bond_id, short(r.bond_id, 16)),
-        h("span", { class: "dim" }, ` · ${gmds(r.value)} · locked to midstate ${num(r.bonded_until)} · ${r.headers} headers`))]),
+        h("span", { class: "dim" }, ` \u00b7 ${gmds(r.value)} \u00b7 locked to midstate ${num(r.bonded_until)} \u00b7 ${r.headers} headers`))]),
     ])),
   ];
 
   const txParts = [
     section("Transaction anatomy", (b.output_groups || []).length + " transaction" + ((b.output_groups || []).length === 1 ? "" : "s") + " aggregated",
-      anatomyDiagram(b),
-      h("div", { class: "note" }, "Inputs and kernels are sorted, so no input ties to an output \u2014 every line drawn is equally consistent. Boxed outputs are the exception: siblings share a range proof.")),
-    section("Coin flow", "the only graph this chain records", spendArcs(b)),
-    section("Inputs", b.inputs.length + " spent",
-      ageHistogram(b),
+      anatomyDiagram(b)),
+    section("Spending graph", "the only graph this chain records", spendArcs(b)),
+    section("Inputs", b.inputs.length + " spent", ageHistogram(b),
       b.inputs.length ? table(["commitment", "created in", "owner key"], b.inputs.map(i => [
         link("output", i.commitment, short(i.commitment, 16)),
         i.created_height != null ? link("block", i.created_height, num(i.created_height)) : h("span", { class: "dim" }, "unknown"),
         h("span", { class: "dim", title: i.owner_key }, short(i.owner_key)),
       ])) : h("div", { class: "empty" }, "none")),
-    section("Outputs", b.outputs.length + " created · " + b.output_groups.length + " range proof" + (b.output_groups.length === 1 ? "" : "s"),
+    section("Outputs", b.outputs.length + " created",
       b.outputs.length ? table(["commitment", "status", "owner key", "payload"], outputRows(b.outputs)) : h("div", { class: "empty" }, "none")),
   ];
 
   const coinbaseParts = [];
   if (cb) {
-    // What the coinbase actually paid. Past its cap a block mints less than
-    // the schedule allows and the difference is burned, so "reward" here is
-    // what was minted, not what the schedule listed. A null means this node
-    // never applied the block (it checkpoint-synced past it) and the figure
-    // is unknown -- showing the schedule there would pass a tapered block
-    // off as full pay.
     const withheldNote = b.withheld ? "  \u00b7  withheld " + coins(b.withheld) + " (over cap, never minted)" : "";
-    const coinbaseHead = b.minted != null
+    const head = b.minted != null
       ? coins(b.minted + b.fees) + " = reward " + coins(b.minted) + " + fees " + coins(b.fees) + withheldNote
       : "reward \u2014 not recorded on this node  \u00b7  fees " + coins(b.fees);
-    coinbaseParts.push(section("Coinbase", coinbaseHead,
+    coinbaseParts.push(section("Coinbase", head,
       table(["output", "status", "owner key", "payload"], outputRows(cb.outputs)),
       dl([
         ["kernel", link("kernel", cb.kernel.excess, cb.kernel.excess)],
@@ -1151,12 +1191,11 @@ async function blockPage(m) {
   }
 
   const kernelParts = [
-    section("Kernels", b.kernels.length + " · fees " + coins(b.fees),
+    section("Kernels", b.kernels.length + " \u00b7 fees " + coins(b.fees),
       b.kernels.length ? table(["excess", "fee", "min height", "features"], b.kernels.map(k => [
-        link("kernel", k.excess, short(k.excess, 16)), coins(k.fee), k.min_height ? num(k.min_height) : h("span", { class: "dim" }, "—"),
+        link("kernel", k.excess, short(k.excess, 16)), coins(k.fee), k.min_height ? num(k.min_height) : h("span", { class: "dim" }, "\u2014"),
         typeof k.features === "string" ? k.features : JSON.stringify(k.features),
-      ]), [1]) : h("div", { class: "empty" }, "none"),
-      h("div", { class: "note" }, "This block's transactions are aggregated into one body: its inputs and outputs balance as a whole, and which input paid which output is not recorded anywhere. Offsets: kernel ", short(b.kernel_offset, 16), ", owner ", short(b.owner_offset, 16), ".")),
+      ]), [1]) : h("div", { class: "empty" }, "none")),
   ];
 
   const tabs = [
@@ -1165,9 +1204,9 @@ async function blockPage(m) {
     ...(cb ? [["coinbase", "Coinbase"]] : []),
     ["kernels", "Kernels"],
   ];
-  const title = h("div", { class: "title" }, h("h1", null, "Block " + num(b.height)), h("span", { class: "dim" }, utc(b.timestamp) + " · " + ago(b.timestamp)), h("div", { class: "pager" }, prev, next));
-  // The data is already here, so switching tabs redraws from memory rather
-  // than refetching the block.
+  const title = h("div", { class: "title" }, h("h1", null, "Block " + num(b.height)),
+    h("span", { class: "dim" }, utc(b.timestamp) + " \u00b7 " + ago(b.timestamp)),
+    h("div", { class: "pager" }, prev, next));
   const draw = () => {
     const active = tabs.some(([k]) => k === blockTab) ? blockTab : "overview";
     const bar = h("div", { class: "tabs", role: "tablist" }, tabs.map(([k, label]) =>
@@ -1182,18 +1221,18 @@ async function blockPage(m) {
   draw();
 }
 
-
 async function outputPage(m) {
   const o = await get("/explorer/output/" + m[1]);
   const immature = o.coinbase && o.unspent && o.matures_at > o.tip;
   const status = o.unspent ? (immature ? tag("warn", "immature coinbase") : tag("ok", "unspent")) : tag("native", "spent");
+  const life = o.unspent ? "unspent" : "spent";
   view.replaceChildren(
     h("div", { class: "title" }, h("h1", null, (o.coinbase ? "Coinbase output " : "Output ") + short(o.commitment, 12)), status),
     section("Life", null, h("div", { class: "flow" },
       h("div", { class: "step" }, h("div", { class: "k" }, "created"), link("block", o.created_height, "block " + num(o.created_height)),
         h("div", { class: "dim" }, o.coinbase ? "as a coinbase output" : "by that block's transactions")),
-      h("div", { class: "arrow" }, "→"),
-      h("div", { class: "step" }, h("div", { class: "k" }, o.unspent ? "unspent" : "spent"),
+      h("div", { class: "arrow" }, "\u2192"),
+      h("div", { class: "step" }, h("div", { class: "k" }, life),
         o.unspent ? h("span", null, o.coinbase ? (immature ? "matures at block " + num(o.matures_at) : "mature since block " + num(o.matures_at)) : "in the UTXO set")
                   : o.spent_height != null ? link("block", o.spent_height, "block " + num(o.spent_height)) : h("span", { class: "dim" }, "spent (block not indexed)"),
         h("div", { class: "dim" }, o.unspent ? (o.tip - o.created_height) + " blocks old" : o.spent_height != null ? "after " + num(o.spent_height - o.created_height) + " blocks" : "")))),
@@ -1205,69 +1244,69 @@ async function outputPage(m) {
       ["recovery commitment", full(o.recovery_commitment)],
       ["encrypted payload", o.payload_bytes + " bytes"],
       ["created in", link("block", o.created_height, o.created_hash)],
-      o.created_burial && ["settled", h("span", null, burialText(o.created_burial), h("span", { class: "dim" }, " · " + burialNote(o.created_burial)))],
+      o.created_burial && ["settled", h("span", null, burialText(o.created_burial), h("span", { class: "dim" }, " \u00b7 " + burialNote(o.created_burial)))],
       o.spent_hash && ["spent in", link("block", o.spent_height, o.spent_hash)],
-    ]), h("div", { class: "note" }, "The amount is hidden in the commitment; only the recipient's keys can open the payload. A spent output can be followed to the block that spent it, but not to the outputs that block created: aggregation removes that link.")));
+    ]), h("div", { class: "note" }, "The amount is hidden in the commitment. A spent output can be followed to the block that spent it, not to the outputs that block created.")));
 }
 
 async function kernelPage(m) {
   const k = await get("/explorer/kernel/" + m[1]);
   view.replaceChildren(
     h("div", { class: "title" }, h("h1", null, (k.coinbase ? "Coinbase kernel " : "Kernel ") + short(k.excess, 12))),
-    section("Kernel", burialText(k), dl([
-      ["block", link("block", k.height, "block " + num(k.height) + " · " + short(k.hash, 16))],
-      ["settled", h("span", null, burialText(k), h("span", { class: "dim" }, " · " + burialNote(k)))],
-      ["fee", coins(k.fee)],
-      ["features", typeof k.features === "string" ? k.features : JSON.stringify(k.features)],
-      ["min height", k.min_height ? num(k.min_height) : "—"],
-      ["excess", full(k.excess)],
-      ["owner excess", full(k.owner_excess)],
-    ]), h("div", { class: "note" }, "A kernel is what remains of a transaction once its block aggregates it: it proves the transaction balanced and pays the fee, without saying which inputs or outputs were its own.")));
+    section("Kernel", burialText(k), h("div", { class: "grid" },
+      stat("fee", coins(k.fee) + " MDW"),
+      stat("min height", k.min_height ? num(k.min_height) : "\u2014"),
+      stat("features", typeof k.features === "string" ? k.features : JSON.stringify(k.features), null, true),
+      stat("settled", burialText(k), burialNote(k), true)),
+      dl([
+        ["block", link("block", k.height, "block " + num(k.height) + " \u00b7 " + short(k.hash, 16))],
+        ["excess", full(k.excess)],
+        ["owner excess", full(k.owner_excess)],
+      ]), h("div", { class: "note" }, "A kernel proves a transaction balanced and pays the fee, without saying which inputs or outputs were its own.")));
 }
 
-function bondTable(r) {
+// ---------- bonds ----------------------------------------------------------
+function bondTable(r, limit) {
   const w = r.window;
   if (!r.bonds.length) return h("div", { class: "empty" }, "no bonds registered");
-  return h("div", null, table(["bond", "value", "locked to", "eligible", "window · cap " + num(w.cap) + " of " + num(w.size), "blocks signed", "mints"],
-    r.bonds.map(b => {
-      const share = b.window_signed / Math.max(w.cap, 1);
-      // Past its cap a bond mints cap/n of the reward; the rest is burned.
-      // From the fork height a block past the cap is invalid instead, so
-      // there is nothing to taper.
-      const over = w.tapering && w.cap_among !== "in_use" && b.window_signed > w.cap;
-      const pay = over ? w.cap / b.window_signed : 1;
-      return [
-        link("bond", b.bond_id, short(b.bond_id, 14)),
-        b.value != null ? gmds(b.value) : "—",
-        b.bonded_until != null ? num(b.bonded_until) : "—",
-        b.eligible_now ? h("span", { style: "color: var(--green)" }, "yes") : h("span", { style: "color: var(--amber)" }, "no"),
-        h("div", { style: "min-width: 170px" }, num(b.window_signed) + " / " + num(w.cap) + (share >= 1 ? "  over cap" : ""), meter(share, share >= 1)),
-        num(b.blocks_signed),
-        w.tapering
-          ? (over
-              ? h("span", { style: "color: var(--amber)" }, (pay * 100).toFixed(1) + "%")
-              : h("span", { style: "color: var(--green)" }, "100%"))
-          : h("span", { class: "dim" }, "—"),
-      ];
-    }), [5, 6]),
-    h("div", { class: "note" }, (w.cap_among === "in_use"
-      ? "A bond may sign up to its cap of the last " + num(w.size) + " blocks, less those a day older than the block it signs; a block past its cap is invalid. The cap is an equal share among the " + num(w.in_use) + " bonds in use (the eligible bonds that signed any of the window's other blocks), never below 1/360, so an idle bond does not shrink it. No block counts for more than a quarter above the lowest-work block of the week before it."
-      : "Fork choice counts a bond's blocks at full weight up to its cap over the last " + num(w.size) + " blocks; past the cap they stay valid but add only 1/1024 of their work. The cap is an equal share among eligible bonds, never below 1/360. No block counts for more than a quarter above the lowest-work block of the week before it." + (w.tapering ? " Past the cap a block also mints less: a bond that signed n of the window keeps cap/n of each block's subsidy, and what is withheld is never minted by anyone." : " From the mainnet switch, an over-cap block will also mint only cap/n of its subsidy, the rest never minted \u2014 mints shows what each bond would keep."))),
-    h("div", { class: "note" }, w.retargeting
-      ? "A new bond must lock at least " + gmds(w.min_bond) + " at this chain's difficulty"
-        + (w.min_bond > w.min_bond_floor
-            ? " \u2014 up from the launch minimum of " + gmds(w.min_bond_floor) + ", because midwimble's work has risen. "
-            : ", the launch minimum. ")
-        + "The bar doubles with every 16-fold rise in midwimble's work, to a ceiling of " + gmds(w.min_bond_ceiling)
-        + ", and applies only to registrations: a bond already above keeps the price it registered at until its lock ends."
-      : "From " + utc(w.retarget_from) + " a new bond's minimum follows midwimble's own difficulty, doubling with every 16-fold rise in work from " + gmds(w.min_bond_floor) + " up to " + gmds(w.min_bond_ceiling) + ". It will apply to registrations only \u2014 a bond already registered keeps the price it registered at."));
+  const rows = (limit ? r.bonds.slice().sort((a, b) => (b.window_signed || 0) - (a.window_signed || 0)) : r.bonds).slice(0, limit || r.bonds.length);
+  const list = rows.map(b => {
+    const share = b.window_signed / Math.max(w.cap, 1);
+    const over = w.cap_among === "in_use" ? b.window_signed > w.cap : (w.tapering && b.window_signed > w.cap);
+    return [
+      link("bond", b.bond_id, short(b.bond_id, 14)),
+      b.value != null ? gmds(b.value) : "\u2014",
+      b.eligible_now ? h("span", { style: "color: var(--green)" }, "yes") : h("span", { style: "color: var(--amber)" }, "no"),
+      h("div", { style: "min-width: 150px" }, num(b.window_signed) + " / " + num(w.cap), meter(share, over)),
+      num(b.blocks_signed),
+    ];
+  });
+  return h("div", null,
+    table(["bond", "value", "eligible", "signed / cap " + num(w.cap), "total blocks"], list, [1, 4]),
+    h("div", { class: "note" },
+      "Cap = \u2308" + num(w.size) + " \u00f7 " + num(w.cap_among === "in_use" ? w.in_use : w.eligible) + " " +
+      (w.cap_among === "in_use" ? "bonds in use\u2309" : "eligible bonds\u2309") + " = " + num(w.cap) + " blocks per window \u00b7 " +
+      h("a", { href: "#/bonds" }, "how it works \u2192")));
 }
 
 async function bondsPage() {
   const r = await get("/explorer/bonds");
+  const w = r.window;
   const heat = signerHeatmap(r);
-  view.replaceChildren(h("div", { class: "title" }, h("h1", null, "Mining bonds"), h("span", { class: "dim" }, r.bonds.length + " registered · window " + num(r.window.filled) + " / " + num(r.window.size) + " blocks")),
-    ...(heat ? [section("Who signed when", "cap " + num(r.window.cap) + " of " + num(r.window.size) + " blocks a bond", heat)] : []),
+  const totalSigned = r.bonds.reduce((a, b) => a + (b.window_signed || 0), 0);
+  const over = r.bonds.filter(b => b.window_signed > w.cap).length;
+  view.replaceChildren(
+    h("div", { class: "title" }, h("h1", null, "Mining bonds"),
+      h("span", { class: "dim" }, r.bonds.length + " registered \u00b7 window " + num(w.filled) + " / " + num(w.size) + " blocks")),
+    h("div", { class: "kpis" },
+      kpi("registered", num(r.bonds.length), "bonds on this chain"),
+      kpi("in use", num(w.in_use ?? w.eligible), num(w.eligible) + " eligible", { accent: true }),
+      kpi("cap a bond", num(w.cap), "blocks per " + num(w.size), { accent: true }),
+      kpi("cap share", pct(ratio(w.cap, w.size)), "of the window each"),
+      kpi("signed", num(totalSigned), "blocks in the window"),
+      kpi("over cap", num(over), over ? "cannot sign again yet" : "none", { small: true })),
+    section("Bonds by weight", "area = blocks signed \u00b7 colour = headroom", bondBubbles(r.bonds, w.cap, w.size)),
+    ...(heat ? [section("Who signed when", "cap " + num(w.cap) + " of " + num(w.size) + " blocks a bond", heat)] : []),
     section("Bonds", null, bondTable(r)));
 }
 
@@ -1275,290 +1314,110 @@ async function bondPage(m) {
   const b = await get("/explorer/bond/" + m[1]);
   const share = b.window_signed / Math.max(b.window.cap, 1);
   view.replaceChildren(
-    h("div", { class: "title" }, h("h1", null, "Bond " + short(b.bond_id, 12)), b.eligible_now ? tag("ok", "eligible") : tag("warn", b.value == null ? "not registered" : "not eligible")),
+    h("div", { class: "title" }, h("h1", null, "Bond " + short(b.bond_id, 12)),
+      b.eligible_now ? tag("ok", "eligible") : tag("warn", b.value == null ? "not registered" : "not eligible")),
     section("Quota", "fork-choice window", h("div", { class: "grid" },
       (() => { const c = cell("signed in window", num(b.window_signed) + " / " + num(b.window.cap)); c.appendChild(meter(share, share >= 1)); return c; })(),
       cell("window", num(b.window.filled) + " of " + num(b.window.size) + " blocks", true),
       cell("blocks signed", num(b.blocks_signed)),
-      cell("last signed", b.last_signed != null ? link("block", b.last_signed, num(b.last_signed)) : "—", true))),
+      cell("last signed", b.last_signed != null ? link("block", b.last_signed, num(b.last_signed)) : "\u2014", true))),
     ...[bondBurn(b.burn)].filter(Boolean),
     section("Bond", null, dl([
       ["bond id (midstate coin)", full(b.bond_id)],
-      ["mining key", b.mining_key ? full(b.mining_key) : "—"],
-      ["value", b.value != null ? gmds(b.value) + " (" + num(b.value) + " base units)" : "—"],
-      ["locked until", b.bonded_until != null ? "midstate height " + num(b.bonded_until) : "—"],
-      ["registered in", b.registered_height != null ? link("block", b.registered_height, "block " + num(b.registered_height)) : "—"],
+      ["mining key", b.mining_key ? full(b.mining_key) : "\u2014"],
+      ["value", b.value != null ? gmds(b.value) + " (" + num(b.value) + " base units)" : "\u2014"],
+      ["locked until", b.bonded_until != null ? "midstate height " + num(b.bonded_until) : "\u2014"],
+      ["registered in", b.registered_height != null ? link("block", b.registered_height, "block " + num(b.registered_height)) : "\u2014"],
     ])),
     section("Recent blocks", b.recent_blocks.length ? "newest " + b.recent_blocks.length : null,
-      b.recent_blocks.length ? h("div", { class: "empty" }, b.recent_blocks.map((x, i) => [i ? " · " : null, link("block", x, num(x))])) : h("div", { class: "empty" }, "none yet")));
+      b.recent_blocks.length ? h("div", { class: "empty" }, b.recent_blocks.map((x, i) => [i ? " \u00b7 " : null, link("block", x, num(x))])) : h("div", { class: "empty" }, "none yet")));
 }
-
-async function privacyPage() {
-  const r = await get("/explorer/blocks?count=200");
-  const b = r.blocks.slice().reverse();                // oldest first
-  const outs = b.map(x => x.body_outputs != null ? x.body_outputs : x.outputs);
-  const txs = b.map(x => x.kernels);                   // one kernel, one transaction
-  const linked = b.map(x => x.linked_outputs || 0);
-  const pairs = b.map((x, i) => x.inputs * outs[i]);
-  const mix = b.map((x, i) => txs[i] ? (x.inputs + outs[i]) / txs[i] : 0);
-  const carried = b.map((x, i) => i).filter(i => outs[i] > 0);
-  const share = carried.map(i => linked[i] / outs[i]);
-
-  const sum = a => a.reduce((p, c) => p + c, 0);
-  const busy = b.filter((_, i) => txs[i] > 0).length;
-  const totOut = sum(outs), totLinked = sum(linked), totTx = sum(txs);
-  const meanPairs = busy ? sum(pairs) / busy : 0;
-  const meanMix = busy ? sum(mix.filter((_, i) => txs[i] > 0)) / busy : 0;
-  const pct = x => (x * 100).toFixed(1) + "%";
-
-  const stats = h("div", { class: "grid" },
-    cell("blocks examined", num(b.length)),
-    cell("carried a transaction", num(busy)),
-    cell("transactions", num(totTx)),
-    cell("mean pairings a block", busy ? num(Math.round(meanPairs)) : "\u2014"),
-    cell("outputs with a public sibling", totOut ? pct(totLinked / totOut) : "\u2014"),
-    cell("mean aggregation", busy ? meanMix.toFixed(2) + " in+out per tx" : "\u2014", true));
-
-  const charts = h("div", { class: "charts two" },
-    h("div", { class: "chart" }, h("div", { class: "k" }, "pairings a block permits \u00b7 log scale"),
-      barChart(pairs, { log: true, colour: themeColors().in, label: (v, i) => v + " pairings in block " + b[i].height })),
-    h("div", { class: "chart" }, h("div", { class: "k" }, "share of outputs with a public sibling \u00b7 blocks carrying transactions"),
-      carried.length
-        ? shareChart(share, themeColors().amber, (v, k) => pct(v) + " of " + outs[carried[k]] + " outputs in block " + b[carried[k]].height)
-        : h("div", { class: "empty" }, "no transactions in this span")),
-    h("div", { class: "chart" }, h("div", { class: "k" }, "transactions a block"),
-      barChart(txs, { colour: themeColors().out, label: (v, i) => v + " in block " + b[i].height })),
-    h("div", { class: "chart" }, h("div", { class: "k" }, "aggregation \u00b7 inputs+outputs per transaction"),
-      barChart(mix, { colour: themeColors().kern, label: (v, i) => v.toFixed(2) + " in block " + b[i].height })));
-
-  view.replaceChildren(
-    h("div", { class: "title" }, h("h1", null, "Privacy"), h("span", { class: "dim" }, "what this chain does and does not reveal, over its last " + num(b.length) + " blocks")),
-    section("Measured", "refreshes every 20s", stats, charts),
-    section("What each number means", null, dl([
-      ["pairings", "inputs \u00d7 outputs \u2014 the assignments the chain leaves consistent. A busy block is a private one."],
-      ["public sibling", "outputs sharing a range proof came from one transaction. The one link aggregation does not erase."],
-      ["transactions", "one kernel, one transaction that balanced here."],
-      ["aggregation", "inputs+outputs per transaction \u2014 how much unrelated traffic merged into one body."],
-    ]), h("div", { class: "note" }, "No amount, address or sender is read: the chain records none. These measure how much the aggregation hides.")));
-  schedule(privacyPage, 20000);
-}
-
-async function mempoolPage() {
-  const m = await get("/explorer/mempool");
-  const txs = m.transactions || [];
-  const rate = t => t.fee_rate || 0;
-  const stats = h("div", { class: "grid" },
-    cell("waiting", num(m.count)),
-    cell("total fees", coins(m.fees)),
-    cell("weight", num(m.weight)),
-    cell("best fee rate", txs.length ? num(Math.round(rate(txs[0]))) + " units/wt" : "\u2014", true));
-
-  const list = h("div", null);
-  txs.forEach(t => {
-    const row = h("details", { class: "txrow" });
-    const sum = h("summary", null,
-      h("span", { class: "hash" }, short(t.hash, 16)),
-      h("span", { class: "dim" }, t.inputs + " in \u00b7 " + t.outputs + " out \u00b7 " + t.kernels + " kernel" + (t.kernels === 1 ? "" : "s")),
-      h("span", null, coins(t.fee), h("span", { class: "dim" }, "  " + num(Math.round(rate(t))) + " units/wt")));
-    row.appendChild(sum);
-    const body = h("div", { class: "body" });
-    body.appendChild(dl([
-      ["spends", t.spends.length
-        ? h("div", null, t.spends.map((c, i) => [i ? " \u00b7 " : null, link("output", c, short(c, 14))]))
-        : h("span", { class: "dim" }, "nothing \u2014 new coins only")],
-      ...t.groups.map((g, gi) => ["creates" + (t.groups.length > 1 ? " (tx output group " + (gi + 1) + ")" : ""),
-        h("div", null,
-          g.commitments.map((c, i) => [i ? " \u00b7 " : null, link("output", c, short(c, 14))]),
-          h("div", { class: "dim" }, g.commitments.length + " output" + (g.commitments.length === 1 ? "" : "s") + " under one " + num(g.range_proof_bytes) + "-byte range proof"))]),
-      ["weight", num(t.weight)],
-    ]));
-    row.appendChild(body);
-    list.appendChild(row);
-  });
-
-  view.replaceChildren(
-    h("div", { class: "title" }, h("h1", null, "Mempool"), h("span", { class: "dim" }, "transactions waiting, best fee rate first")),
-    section("Waiting", "refreshes every 5s", stats,
-          txs.length ? h("div", { class: "charts" }, h("div", { class: "chart" },
-            h("div", { class: "k" }, "fee rate per transaction"),
-            barChart(txs.map(rate), { colour: themeColors().amber, label: (v, i) => num(Math.round(v)) + " units per weight · " + short(txs[i].hash, 12) }))) : null,
-          txs.length ? (() => {
-            const economic = txs.filter(t => rate(t) >= 100).length;
-            const low = txs.filter(t => rate(t) >= 50 && rate(t) < 100).length;
-            const below = txs.filter(t => rate(t) < 50).length;
-            return h("div", { style: "padding:0 20px 10px;display:flex;gap:14px;flex-wrap:wrap;font-size:12px" },
-              h("span", { style: "color:var(--green)" }, "economic · ≥100 units/wt · " + economic),
-              h("span", { style: "color:var(--amber)" }, "low · ≥50 · " + low),
-              h("span", { style: "color:var(--muted)" }, "below relay min · <50 · " + below));
-          })() : null),
-    section("Transactions", m.listed < m.count ? "showing " + num(m.listed) + " of " + num(m.count) : null,
-      txs.length ? list : h("div", { class: "empty" }, "nothing waiting"),
-      h("div", { class: "note" }, "Here each of these is a separate transaction, with its own inputs, outputs and kernel. The block that takes them aggregates them \u2014 inputs and kernels flattened and sorted \u2014 and these boundaries stop existing. Every output above is already a working link: follow it after the block lands and it resolves to the block that created it.")));
-  schedule(mempoolPage, 5000);
-}
-
-async function networkPage() {
-  const n = await get("/explorer/network");
-  const d = n.dandelion;
-  view.replaceChildren(
-    h("div", { class: "title" }, h("h1", null, "Network"), h("span", { class: "dim" }, "how a transaction reaches the chain, and who can watch it happen")),
-    section("Dandelion++", "as this node would route a transaction right now", dandelionDiagram(d)),
-    section("Measured", null, h("div", { class: "grid" },
-      cell("fluff chance a hop", d.fluff_percent + "%"),
-      cell("expected stem hops", d.expected_hops.toFixed(1)),
-      cell("embargo", d.stem_timeout_secs + "s", true),
-      cell("in the stem pool", num(d.stem_pool) + " of " + num(d.max_stem_pool), true),
-      cell("outbound peers", num(n.outbound)),
-      cell("inbound peers", num(n.inbound)),
-      n.version ? cell("version", n.version, true) : null,
-      (n.outbound != null && n.inbound != null) ? cell("peer total", num(n.outbound + n.inbound) + " · out " + num(n.outbound) + " / in " + num(n.inbound), true) : null)),
-    section("Peers", num((n.peers || []).length) + " connected \u00b7 " + num(n.banned) + " banned", peerMap(n)),
-    section("Who sees what", "hover the stem above", facts([
-      ["the peer you stem to", ["your address", "a transaction from you"], ["whether you wrote it"]],
-      ["a later stem hop", ["the hop before it"], ["where the stem began", "how long it already is"]],
-      ["first to see the fluff", ["a transaction"], ["its author", "how many were merged into it"]],
-      ["a node watching everything", ["timing", "who fluffed first"], ["certainty"]],
-      ["anyone with the chain", ["commitments", "kernels", "block shape"], ["amounts", "addresses", "senders"]],
-      ["anyone reading this page", ["peer ids", "directions", "transports"], ["peer addresses"]],
-    ]), h("div", { class: "note" }, "Timing is the real limit: enough well-connected nodes can still guess an origin. Dandelion++ raises the cost of that guess \u2014 it does not remove it, and no deployed design does.")));
-  schedule(networkPage, 15000);
-}
-
-// ---------- burn tracker ---------------------------------------------------
-// What the over-cap taper kept from being minted since the mainnet switch.
-// Every number comes from /explorer/burn, which sums the same withheld figure
-// each coinbase shows (the block's scheduled subsidy less what consensus let
-// it mint) and checks the total against the chain's own supply accounting.
-// Nothing here re-derives the taper.
+// ---------- burn -----------------------------------------------------------
 const PERIODS = [["all", "all-time"], ["day", "last 24h"], ["week", "last 7 days"]];
 let burnPeriod = "all", burnSeries = "days";
-const burnSort = { key: "withheld", dir: -1 };
-const pct = (x, d = 1) => x == null || !isFinite(x) ? "—" : (x * 100).toFixed(d) + "%";
-const ratio = (a, b) => b ? a / b : null;
-const mdw = units => coins(units) + " MDW";
-const utcDay = ts => new Date(ts * 1000).toISOString().slice(0, 10);
-// A cell whose value is a figure and whose words go on a line of their own,
-// so the explorer's break-anywhere rule for hashes never splits them.
-function stat(k, v, sub) {
-  const c = cell(k, v);
-  if (sub) c.appendChild(h("div", { class: "sub" }, sub));
-  return c;
-}
-
-// One light line per tier of how much of a bond's scheduled subsidy was
-// withheld. Factual, never a judgement of whoever runs it: a bond is a
-// pseudonymous midstate coin, and burning is within the rules.
-function burnTier(f) {
-  if (!f) return "minting in full";
-  if (f >= 0.75) return "a bonfire for scarcity";
-  if (f >= 0.5) return "donating to scarcity";
-  if (f >= 0.25) return "running hot";
-  if (f >= 0.1) return "warming up";
-  return "a wisp of smoke";
-}
-function flame(f) {
-  const span = h("span");
-  span.style.width = Math.min(100, f > 0 ? Math.max(2, f * 100) : 0) + "%";
-  return h("span", { class: "flame", title: pct(f) + " of the scheduled subsidy withheld" }, span);
-}
 const topBurner = t => t.rank === 1 && t.withheld > 0
-  ? h("span", { class: "tag fire", title: "Top Burner: most MDW withheld in this period" }, "🔥", h("span", { class: "word" }, " Top Burner"))
+  ? h("span", { class: "tag fire", title: "most MDW withheld in this period" }, "\ud83d\udd25", h("span", { class: "word" }, " top"))
   : null;
 function mintedPct(t) {
   const m = ratio(t.minted, t.scheduled);
-  return m == null ? h("span", { class: "dim" }, "—") : h("span", { class: m < 1 ? "hot" : null, style: m < 1 ? null : "color: var(--green)" }, pct(m));
+  return m == null ? h("span", { class: "dim" }, "\u2014")
+    : h("span", { class: m < 1 ? "hot" : null, style: m < 1 ? null : "color: var(--green)" }, pct(m));
 }
+const flame = f => {
+  const span = h("span");
+  span.style.width = Math.min(100, f > 0 ? Math.max(2, f * 100) : 0) + "%";
+  return h("span", { class: "flame", title: pct(f) + " of the scheduled subsidy withheld" }, span);
+};
 function toggle(options, current, choose) {
   return h("span", { class: "toggle" }, options.map(([k, text]) =>
     h("button", { class: k === current ? "on" : null, onclick: () => choose(k) }, text)));
 }
-const toWhy = ev => {
-  ev.preventDefault();
-  const why = document.getElementById("why");
-  if (why) why.scrollIntoView({ behavior: "smooth" });
-};
 
 function burnBanner(r) {
   const check = !r.complete
-    ? "from the chain's own supply accounting: this node does not hold a record of every block since the switch"
-    : r.consensus.matches
-      ? "✓ every coinbase since the switch adds up to exactly what the chain's supply accounting says is missing"
-      : "⚠ the coinbases and the chain's supply accounting disagree — see the check below";
+    ? "from the chain's own supply accounting"
+    : r.consensus.matches ? "\u2713 every coinbase since the switch adds up to the missing supply"
+    : "\u26a0 coinbases and supply accounting disagree";
   return h("div", { class: "banner" },
-    h("b", null, mdw(r.burned)), " burned so far. Effective max supply now ", h("b", null, mdw(r.effective_max_supply)), ".",
-    h("span", { class: "sub" }, check),
-    h("a", { class: "why", href: "#/burn", onclick: toWhy },
-      "Why over-cap bonds burn: each bond gets an equal capped share, and adding bonds is the honest way to a bigger one →"));
+    h("b", null, coinShort(r.burned)), " burned so far \u00b7 effective max supply ", h("b", null, coinShort(r.effective_max_supply)),
+    h("span", { class: "sub" }, check));
 }
 
-// The headline: bonds ranked by what they withheld in the chosen period.
+// The rule, as three cards instead of five paragraphs.
+function burnRule(r) {
+  const w = r.window;
+  const divisor = w.cap_among === "in_use" ? w.in_use : w.eligible;
+  const card = (title, body, accent) => h("div", { class: "kpi" + (accent ? " hero-kpi" : "") },
+    h("div", { class: "label" }, title), h("div", { class: "sub", style: "font-size:12.5px;line-height:1.6;margin-top:6px" }, body));
+  return h("div", { class: "kpis", style: "padding:14px 18px" },
+    card("the share", h("span", null, "Each bond may sign \u2308", num(w.size), " \u00f7 ", num(divisor || 0), "\u2309 = ",
+      h("b", null, num(w.cap)), " of the last ", num(w.size), " blocks at full pay.")),
+    card("past the cap", h("span", null, "A block past its cap is ", h("b", null, "invalid"), " \u2014 not tapered. Before the fork it stayed valid and minted cap/n; that is history now.")),
+    card("why", h("span", null, "Burning is what the rule does to hashrate that outruns its bonds. More bonds is the honest way to a bigger share."), true));
+}
+
 function leaderboard(r) {
   const body = h("div"), aside = h("span");
   const draw = () => {
     aside.replaceChildren(toggle(PERIODS, burnPeriod, p => { burnPeriod = p; draw(); }));
     const net = r.periods[burnPeriod];
-    const ranked = r.bonds.filter(b => b[burnPeriod].rank != null)
-      .sort((a, b) => a[burnPeriod].rank - b[burnPeriod].rank);
+    const ranked = r.bonds.filter(b => b[burnPeriod].rank != null).sort((a, b) => a[burnPeriod].rank - b[burnPeriod].rank);
     if (!ranked.length) {
-      body.replaceChildren(h("div", { class: "empty" }, r.active
-        ? "No bond signed a block in this period."
-        : "The taper starts at the mainnet switch, " + utc(r.switch) + ". Nothing has been withheld yet."));
+      body.replaceChildren(h("div", { class: "empty" }, r.active ? "No bond signed a block in this period." : "The taper starts at the mainnet switch, " + utc(r.switch) + "."));
       return;
     }
-    const rows = ranked.map(b => {
-      const t = b[burnPeriod], f = ratio(t.withheld, t.scheduled) || 0;
-      return [
-        h("span", { class: "rank" }, "#" + t.rank),
-        h("span", null, link("bond", b.bond_id, short(b.bond_id, 14)), topBurner(t)),
-        h("span", { class: t.withheld ? "hot" : "dim" }, coins(t.withheld)),
-        h("span", null, flame(f), "  ", h("span", { class: f ? "hot" : "dim" }, pct(f)), "  ", h("span", { class: "tagline" }, burnTier(f))),
-        mintedPct(t),
-        pct(ratio(t.blocks, net.blocks)),
-        b.streak
-          ? h("span", { class: "hot", title: "its last " + num(b.streak) + " blocks in a row went over cap · longest run " + num(b.longest_streak) }, "🔥 " + num(b.streak))
-          : h("span", { class: "dim", title: "longest run " + num(b.longest_streak) }, "—"),
-      ];
-    });
+    const top = ranked.slice(0, 12);
     body.replaceChildren(
-      h("div", { class: "lb" }, table(["#", "bond", "burned · MDW", "burn", "minted", "signed", "streak"], rows, [2, 4, 5, 6])),
-      h("div", { class: "note" },
-        "Ranked by MDW withheld and never minted, " + (burnPeriod === "all" ? "since the mainnet switch" : "in the " + PERIODS.find(([k]) => k === burnPeriod)[1] + " of blocks up to the tip") + ". ",
-        "These add up to the network's " + coins(net.withheld) + " for the period" + (net.bonds_withheld === net.withheld ? " exactly" : " — ⚠ they do not") + ". ",
-        "Burn is the share of a bond's scheduled subsidy the taper withheld, minted is the rest, signed is its share of all blocks in the period, and a streak is how many of its latest blocks in a row went over cap. ",
-        "Bonds are pseudonymous: an id is a midstate coin, nothing more."));
+      table(["#", "bond", "burned \u00b7 MDW", "burn", "minted", "signed", "streak"], top.map(b => {
+        const t = b[burnPeriod], f = ratio(t.withheld, t.scheduled) || 0;
+        return [
+          h("span", { class: "rank" }, "#" + t.rank),
+          h("span", null, link("bond", b.bond_id, short(b.bond_id, 14)), topBurner(t)),
+          h("span", { class: t.withheld ? "hot" : "dim" }, (t.withheld / COIN).toLocaleString(undefined, { maximumFractionDigits: 2 })),
+          h("span", null, flame(f), "  ", h("span", { class: f ? "hot" : "dim" }, pct(f))),
+          mintedPct(t),
+          pct(ratio(t.blocks, net.blocks)),
+          b.streak ? h("span", { class: "hot", title: "longest run " + num(b.longest_streak) }, "\ud83d\udd25 " + num(b.streak)) : h("span", { class: "dim" }, "\u2014"),
+        ];
+      }), [2, 4, 5, 6]),
+      h("div", { class: "note" }, "Top " + top.length + " of " + ranked.length + ", ranked by MDW never minted; the column adds up to the network's " +
+        (net.withheld / COIN).toLocaleString(undefined, { maximumFractionDigits: 2 }) + " MDW for the period."));
   };
   draw();
-  return section("Burn leaderboard", aside, burnBanner(r), body);
+  return section("Burn leaderboard", aside, body);
 }
 
 function burnTotals(r) {
   const all = r.periods.all;
-  const burned = cell("burned since the switch", coins(r.burned));
-  burned.appendChild(meter(ratio(all.withheld, all.scheduled) || 0, true));
-  const supply = cell("current supply", coins(r.supply));
-  supply.appendChild(meter(r.supply / r.max_supply));
-  const check = !r.complete
-    ? stat("check", h("span", { class: "dim" }, "partial"),
-        "block records from " + (r.indexed_from != null ? num(r.indexed_from) : "—") + "; the total is the chain's own")
-    : r.consensus.matches
-      ? stat("check", h("span", { style: "color: var(--green)" }, "✓ adds up"), "coinbases = schedule − supply")
-      : stat("check", h("span", { class: "hot" }, "⚠ mismatch"),
-          "coinbases " + coins(all.withheld) + " ≠ schedule − supply " + coins(r.consensus.withheld));
+  const minted = all.minted, withheld = all.withheld;
   return h("div", { class: "grid" },
-    burned,
-    stat("effective max supply", coins(r.effective_max_supply), "1,000,000 less what was burned"),
-    supply,
-    stat("withheld of issuance", pct(ratio(r.burned, r.scheduled_to_date), 2), "of " + coins(r.scheduled_to_date) + " scheduled to date"),
-    stat("minted since the switch", coins(all.minted), "of " + coins(all.scheduled) + " scheduled"),
-    stat("withheld since the switch", pct(ratio(all.withheld, all.scheduled)), "of the scheduled subsidy"),
+    (() => { const c = stat("minted since the switch", coins(minted), "of " + coins(minted + withheld) + " scheduled"); return c; })(),
+    stat("withheld", h("span", { class: "hot" }, coins(withheld)), pct(ratio(withheld, minted + withheld)) + " of issuance"),
     stat("over-cap blocks", num(all.tapered), "of " + num(all.blocks) + " since the switch"),
-    check);
+    stat("consensus check", r.complete ? (r.consensus.matches ? h("span", { style: "color:var(--green)" }, "\u2713 adds up") : h("span", { class: "hot" }, "\u26a0 mismatch")) : h("span", { class: "dim" }, "partial"),
+      r.complete ? "coinbases = schedule \u2212 supply" : "block records from " + num(r.indexed_from), true));
 }
 
-// Minted and withheld per bucket, stacked: the bar's height is what the
-// schedule offered, the flame part is what was never minted.
-// At least 14 slots, filled from the left, so the first days of a series are
-// bars rather than one wall-to-wall block, and the chart grows as they come.
 function stackChart(buckets, label) {
   const W = 600, H = 170, max = Math.max(1, ...buckets.map(b => b.minted + b.withheld));
   const bw = W / Math.max(buckets.length, 14), gap = Math.min(8, bw * 0.18);
@@ -1567,8 +1426,8 @@ function stackChart(buckets, label) {
     const mh = (b.minted / max) * (H - 4), wh = (b.withheld / max) * (H - 4);
     const x = i * bw + gap / 2, w = Math.max(1, bw - gap);
     const g = svg("g");
-    g.appendChild(svg("rect", { x, y: H - mh, width: w, height: Math.max(0, mh), fill: themeColors().in, opacity: .85 }));
-    if (wh > 0) g.appendChild(svg("rect", { x, y: H - mh - wh, width: w, height: wh, fill: "#ff8a3d", opacity: .9 }));
+    g.appendChild(svg("rect", { x, y: H - mh, width: w, height: Math.max(0, mh), fill: themeColors().green, opacity: .7 }));
+    if (wh > 0) g.appendChild(svg("rect", { x, y: H - mh - wh, width: w, height: wh, fill: themeColors().fire, opacity: .95 }));
     g.appendChild(svg("title")).textContent = label(b);
     s.appendChild(g);
   });
@@ -1580,153 +1439,202 @@ function burnChart(r) {
   const draw = () => {
     aside.replaceChildren(toggle([["days", "per day"], ["kblocks", "per 1,000 blocks"]], burnSeries, k => { burnSeries = k; draw(); }));
     const buckets = r.series[burnSeries];
-    if (!buckets.length) {
-      body.replaceChildren(h("div", { class: "empty" }, "Nothing to chart before the mainnet switch."));
-      return;
-    }
-    const name = b => burnSeries === "days" ? utcDay(b.day) + " UTC" : "blocks " + num(b.from) + "–" + num(b.from + 999);
-    const label = b => name(b) + "\n" + num(b.blocks) + " blocks · minted " + coins(b.minted) +
-      " · withheld " + coins(b.withheld) + " (" + pct(ratio(b.withheld, b.scheduled)) + " of the schedule)";
+    if (!buckets.length) { body.replaceChildren(h("div", { class: "empty" }, "nothing to chart before the mainnet switch")); return; }
+    const name = b => burnSeries === "days" ? utcDay(b.day) + " UTC" : "blocks " + num(b.from) + "\u2013" + num(b.from + 999);
     body.replaceChildren(
-      h("div", { class: "chart tall" },
-        h("div", { class: "k" }, "MDW a " + (burnSeries === "days" ? "day" : "1,000 blocks") + " · hover a bar"),
-        stackChart(buckets, label)),
-      h("div", { class: "legend", style: "padding: 0 20px 14px" },
-        h("span", null, h("i", { style: "background:" + themeColors().in }), "minted"),
-        h("span", null, h("i", { style: "background:#ff8a3d" }), "withheld, never minted"),
-        h("span", null, buckets.length > 1 ? name(buckets[0]) + " → " + name(buckets[buckets.length - 1]) : name(buckets[0])),
-        burnSeries === "days" ? h("span", null, "the last day is still filling") : null));
+      h("div", { class: "chart tall" }, h("div", { class: "k" }, "MDW a " + (burnSeries === "days" ? "day" : "1,000 blocks")),
+        stackChart(buckets, b => name(b) + "\nminted " + coins(b.minted) + " \u00b7 withheld " + coins(b.withheld) + " (" + pct(ratio(b.withheld, b.scheduled)) + " of schedule)")),
+      h("div", { class: "legend", style: "padding: 0 18px 12px" },
+        h("span", null, h("i", { style: "background:" + themeColors().green }), "minted"),
+        h("span", null, h("i", { style: "background:" + themeColors().fire }), "withheld, never minted")));
   };
   draw();
   return section("Minted and withheld", aside, body);
 }
 
-// Every bond that signed since the switch, and every registered one.
-function sortableTable(cols, items, state, redraw) {
-  const col = cols.find(c => c.key === state.key) || cols[0];
-  const val = x => x == null || Number.isNaN(x) ? null : x;
-  const sorted = items.slice().sort((a, b) => {
-    const va = val(col.value(a)), vb = val(col.value(b));
-    if (va === vb) return 0;
-    if (va == null) return 1;   // unknowns last, whichever way
-    if (vb == null) return -1;
-    return (va < vb ? -1 : 1) * state.dir;
-  });
-  return h("div", { class: "scroll" }, h("table", null,
-    h("thead", null, h("tr", null, cols.map(c => h("th", {
-      class: "sort" + (c.num ? " num" : ""), title: "sort by " + c.head,
-      onclick: () => { state.dir = state.key === c.key ? -state.dir : (c.num ? -1 : 1); state.key = c.key; redraw(); },
-    }, c.head, state.key === c.key ? (state.dir < 0 ? " ↓" : " ↑") : "")))),
-    h("tbody", null, sorted.map(x => h("tr", null, cols.map(c => h("td", { class: c.num ? "num" : null }, c.cell(x))))))));
-}
-
-function burnBondTable(r) {
-  const w = r.window, capShare = w.size ? w.cap / w.size : null;
-  const share = b => ratio(b.window_signed, w.filled);
-  const cols = [
-    { key: "id", head: "bond", value: b => b.bond_id, cell: b => link("bond", b.bond_id, short(b.bond_id, 14)) },
-    { key: "share", head: "window share", num: true, value: share,
-      cell: b => h("span", { class: b.window_signed > w.cap ? "hot" : null, title: num(b.window_signed) + " of the last " + num(w.filled) + " blocks" }, pct(share(b))) },
-    { key: "cap", head: "cap share", num: true, value: b => b.eligible ? capShare : null,
-      cell: b => b.eligible ? pct(capShare) : h("span", { class: "dim", title: b.registered ? "not eligible: it cannot sign" : "no longer registered" }, "—") },
-    { key: "minted_pct", head: "% minted", num: true, value: b => ratio(b.all.minted, b.all.scheduled), cell: b => mintedPct(b.all) },
-    { key: "withheld", head: "withheld", num: true, value: b => b.all.withheld,
-      cell: b => h("span", { class: b.all.withheld ? "hot" : "dim" }, coins(b.all.withheld)) },
-    { key: "minted", head: "minted", num: true, value: b => b.all.minted, cell: b => coins(b.all.minted) },
-    { key: "blocks", head: "blocks", num: true, value: b => b.all.blocks, cell: b => num(b.all.blocks) },
-  ];
-  const body = h("div");
-  const draw = () => body.replaceChildren(sortableTable(cols, r.bonds, burnSort, draw));
-  draw();
-  return section("By bond", "since the switch · click a column to sort", body,
-    h("div", { class: "note" }, "Window share is the bond's part of the last " + num(w.filled) + " blocks; cap share is what each of the " +
-      (w.cap_among === "in_use" ? num(w.in_use) + " bonds in use" : num(w.eligible) + " eligible bonds") +
-      " may sign at full pay (" + num(w.cap) + " blocks). A window share above the cap share mints cap/n" +
-      (w.cap_among === "in_use" ? " below the fork height; from it, such a block is invalid. " : ". ") +
-      "% minted compares with each block's own scheduled subsidy, which ramps up over the first 43,200 blocks."));
-}
-
-function burnExplainer(r) {
-  const w = r.window, gh = "https://github.com/ciphernom/midwimble";
-  const ext = (href, text) => h("a", { href, target: "_blank", rel: "noopener" }, text);
-  const s = section("Why over-cap bonds burn", null,
-    h("div", { class: "explain" },
-      h("p", null, h("b", null, "Each bond gets an equal capped share. "),
-        "Every eligible bond may sign up to cap = ⌈1,440 ÷ eligible bonds⌉ of the last 1,440 blocks at full pay, and the share stops shrinking at 360 bonds (4 blocks a day). " +
-        "From height " + num(w.aging_from) + " the share is among the bonds in use instead, the eligible bonds that signed any other block of the window, so an idle bond no longer shrinks it; and a block past its cap is invalid rather than tapered. Now: " +
-        (w.cap_among === "in_use"
-          ? num(w.in_use) + " bond" + (w.in_use === 1 ? "" : "s") + " in use of " + num(w.eligible) + " eligible"
-          : num(w.eligible) + " eligible bond" + (w.eligible === 1 ? "" : "s")) +
-        ", a cap of " + num(w.cap) + " blocks, " + pct(ratio(w.cap, w.size)) + " each."),
-      h("p", null, h("b", null, "Past the cap, blocks stay valid but mint less. "),
-        "A bond that has signed n blocks of the window, n above its cap, mints cap/n of each block's scheduled subsidy, rounded down. Fees are always paid in full. The rest is never minted by anyone: not redistributed, just never created, so the final supply settles below 1,000,000."),
-      h("p", null, h("b", null, "Unsigned blocks are never tapered, "),
-        "and nothing was tapered before the mainnet switch, " + utc(r.switch) + "."),
-      h("p", null, h("b", null, "More bonds is the honest way to a bigger share. "),
-        "Each bond carries its own cap, so a producer that locks more bonds, or signs with co-bonds others lock to its mining key, mints in full on more blocks. Burning is what the rule does to hashrate that outruns its bonds."),
-      h("p", { class: "dim" },
-        "Every figure on this page is a coinbase's own: the block's scheduled subsidy, which ramps up over the chain's first 43,200 blocks, less what consensus recorded it minting. The total is checked against the chain's supply accounting.")),
-    h("div", { class: "note" }, "Read more: ",
-      ext(gh + "#emission-coretypesrs-docslaunchmd", "README: over-cap taper"), "  ·  ",
-      ext(gh + "/blob/main/docs/BONDED_POW.md#co-bonding-and-the-per-bond-cap", "docs: the per-bond cap"), "  ·  ",
-      ext(gh + "/blob/main/src/core/bond.rs", "code: capped_subsidy, signer_cap, subsidy_for"), "  ·  JSON ",
-      h("a", { href: "/explorer/burn" }, "/explorer/burn")));
-  s.id = "why";
-  return s;
-}
-
 async function burnPage() {
   const r = await get("/explorer/burn");
+  const p = r.periods.all;
+  const ring = h("div", { class: "cell", style: "border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center" },
+    h("div", { class: "k", style: "align-self:flex-start" }, "since the switch"),
+    donut(p.minted, p.withheld));
+  const figures = h("div", { class: "grid" },
+    stat("burned", mdw(r.burned)),
+    stat("effective max supply", mdw(r.effective_max_supply), "1,000,000 less what was burned"),
+    stat("current supply", mdw(r.supply)),
+    stat("withheld of issuance", pct(ratio(r.burned, r.scheduled_to_date), 2), "of " + mdw(r.scheduled_to_date) + " scheduled"));
+  const headline = section("Headline", "refreshes every 30s", burnBanner(r),
+    h("div", { class: "grid", style: "align-items:center" }, ring, h("div", { class: "cell" }, figures)));
+  const links = section("Read more", null, h("div", { class: "note", style: "border-top:0" },
+    h("a", { href: "https://github.com/ciphernom/midwimble", target: "_blank", rel: "noopener" }, "README: over-cap taper"), "  \u00b7  ",
+    h("a", { href: "https://github.com/ciphernom/midwimble/blob/main/docs/BONDED_POW.md", target: "_blank", rel: "noopener" }, "docs: the per-bond cap"), "  \u00b7  ",
+    h("a", { href: "https://github.com/ciphernom/midwimble/blob/main/src/core/bond.rs", target: "_blank", rel: "noopener" }, "code: signer_cap, subsidy_for"), "  \u00b7  ",
+    h("a", { href: "/explorer/burn" }, "JSON")));
   view.replaceChildren(
     h("div", { class: "title" }, h("h1", null, "Burn tracker"),
-      h("span", { class: "dim" }, "what over-cap bonds left unminted since the mainnet switch, " + utc(r.switch))),
-    leaderboard(r),
-    section("Network", "since the switch · refreshes every 30s", burnTotals(r)),
+      h("span", { class: "dim" }, "what over-cap bonds left unminted since " + utc(r.switch))),
+    headline,
+    burnRule(r),
     burnChart(r),
-    burnBondTable(r),
-    burnExplainer(r));
+    leaderboard(r),
+    burnTotals(r),
+    links);
   schedule(burnPage, 30000);
 }
 
 // The bond page's share of the same report.
 function bondBurn(burn) {
   if (!burn) return null;
-  const more = h("a", { href: "#/burn" }, "leaderboard →");
+  const more = h("a", { href: "#/burn" }, "leaderboard \u2192");
   if (!burn.active) return section("Burn", more, h("div", { class: "empty" }, "The over-cap taper starts at the mainnet switch, " + utc(burn.switch) + "."));
   const b = burn.bond;
-  if (!b || !b.all.blocks) return section("Burn", more, h("div", { class: "empty" }, "This bond has signed no block since the mainnet switch, so nothing of its has been withheld."));
+  if (!b || !b.all.blocks) return section("Burn", more, h("div", { class: "empty" }, "This bond has signed no block since the switch."));
   const { all, day, week } = b, w = burn.window, f = ratio(all.withheld, all.scheduled) || 0;
-  const burned = cell("burned since the switch", coins(all.withheld) + " MDW");
+  const burned = cell("burned since the switch", coinShort(all.withheld));
   burned.appendChild(meter(f, true));
   const period = (k, t) => t.blocks
-    ? stat(k, coins(t.withheld), "burned · " + pct(ratio(t.minted, t.scheduled)) + " of the full subsidy minted")
-    : stat(k, h("span", { class: "dim" }, "—"), "no blocks");
-  return section("Burn", more,
-    h("div", { class: "grid" },
-      burned,
-      stat("leaderboard", all.rank != null ? "#" + num(all.rank) + " of " + num(burn.ranked) : "—", topBurner(all)),
-      stat("full subsidy minted", mintedPct(all), burnTier(f)),
-      stat("minted since the switch", coins(all.minted) + " MDW"),
-      stat("blocks since the switch", num(all.blocks), num(all.tapered) + " over cap"),
-      stat("burn streak", num(b.streak), "over-cap blocks in a row now · longest " + num(b.longest_streak)),
-      period("last 24h", day),
-      period("last 7 days", week),
-      stat("window share", pct(ratio(b.window_signed, w.filled)), "of the last " + num(w.filled) + " blocks · cap " + pct(ratio(w.cap, w.size)))),
-    h("div", { class: "note" }, "Withheld is the scheduled subsidy of this bond's blocks that the over-cap taper kept from being minted; nobody receives it. Signing above the cap share is what triggers it, and more bonds is what lifts it."));
+    ? stat(k, coinShort(t.withheld), pct(ratio(t.minted, t.scheduled)) + " of the subsidy minted")
+    : stat(k, h("span", { class: "dim" }, "\u2014"), "no blocks");
+  return section("Burn", more, h("div", { class: "grid" },
+    burned,
+    stat("rank", all.rank != null ? "#" + num(all.rank) + " of " + num(burn.ranked) : "\u2014", null),
+    stat("full subsidy minted", mintedPct(all)),
+    period("last 24h", day),
+    period("last 7 days", week),
+    stat("burn streak", num(b.streak), "longest " + num(b.longest_streak), true)));
 }
 
-// ---------- api docs -------------------------------------------------------
+// ---------- privacy --------------------------------------------------------
+async function privacyPage() {
+  const r = await get("/explorer/blocks?count=200");
+  const b = r.blocks.slice().reverse();
+  const outs = b.map(x => x.body_outputs != null ? x.body_outputs : x.outputs);
+  const txs = b.map(x => x.kernels);
+  const linked = b.map(x => x.linked_outputs || 0);
+  const pairs = b.map((x, i) => x.inputs * outs[i]);
+  const mix = b.map((x, i) => txs[i] ? (x.inputs + outs[i]) / txs[i] : 0);
+  const carried = b.map((x, i) => i).filter(i => outs[i] > 0);
+  const share = carried.map(i => linked[i] / outs[i]);
+  const sum = a => a.reduce((p, c) => p + c, 0);
+  const busy = b.filter((_, i) => txs[i] > 0).length;
+  const totOut = sum(outs), totLinked = sum(linked), totTx = sum(txs);
+  const meanPairs = busy ? sum(pairs) / busy : 0;
+  const meanMix = busy ? sum(mix.filter((_, i) => txs[i] > 0)) / busy : 0;
+
+  view.replaceChildren(
+    h("div", { class: "title" }, h("h1", null, "Privacy"),
+      h("span", { class: "dim" }, "what the chain does and does not reveal, over its last " + num(b.length) + " blocks")),
+    h("div", { class: "kpis" },
+      kpi("blocks", num(b.length), "examined"),
+      kpi("with a transaction", num(busy), "the rest were empty"),
+      kpi("transactions", num(totTx), "one kernel, one transaction"),
+      kpi("pairings a block", busy ? num(Math.round(meanPairs)) : "\u2014", "assignments left consistent"),
+      kpi("public siblings", totOut ? pct(totLinked / totOut) : "\u2014", "outputs that share a proof"),
+      kpi("aggregation", busy ? meanMix.toFixed(2) : "\u2014", "in+out per transaction")),
+    section("Measured", "refreshes every 20s",
+      h("div", { class: "charts two" },
+        h("div", { class: "chart" }, h("div", { class: "k" }, "pairings a block permits \u00b7 log scale"),
+          barChart(pairs, { log: true, colour: themeColors().in, label: (v, i) => v + " pairings in block " + b[i].height })),
+        h("div", { class: "chart" }, h("div", { class: "k" }, "share of outputs with a public sibling"),
+          carried.length ? shareChart(share, themeColors().amber, (v, k) => pct(v) + " of " + outs[carried[k]] + " outputs in block " + b[carried[k]].height)
+            : h("div", { class: "empty" }, "no transactions in this span")),
+        h("div", { class: "chart" }, h("div", { class: "k" }, "transactions a block"),
+          barChart(txs, { colour: themeColors().out, label: (v, i) => v + " in block " + b[i].height })),
+        h("div", { class: "chart" }, h("div", { class: "k" }, "inputs + outputs per transaction"),
+          barChart(mix, { colour: themeColors().kern, label: (v, i) => v.toFixed(2) + " in block " + b[i].height })))),
+    h("div", { class: "note", style: "border-top:0" },
+      "No amount, address or sender is read: the chain records none. These measure how much aggregation hides."));
+  schedule(privacyPage, 20000);
+}
+
+// ---------- mempool --------------------------------------------------------
+async function mempoolPage() {
+  const m = await get("/explorer/mempool");
+  const txs = m.transactions || [];
+  const rateOf = t => t.fee_rate || 0;
+  const list = h("div", null);
+  txs.forEach(t => {
+    const row = h("details", { class: "txrow" });
+    row.appendChild(h("summary", null,
+      h("span", { class: "hash" }, short(t.hash, 16)),
+      h("span", { class: "dim" }, t.inputs + " in \u00b7 " + t.outputs + " out \u00b7 " + t.kernels + " kernel" + (t.kernels === 1 ? "" : "s")),
+      h("span", null, coins(t.fee), h("span", { class: "dim" }, "  " + num(Math.round(rateOf(t))) + " units/wt"))));
+    const body = h("div", { class: "body" });
+    body.appendChild(dl([
+      ["spends", t.spends.length
+        ? h("div", null, t.spends.map((c, i) => [i ? " \u00b7 " : null, link("output", c, short(c, 14))]))
+        : h("span", { class: "dim" }, "nothing \u2014 new coins only")],
+      ...t.groups.map((g, gi) => ["creates" + (t.groups.length > 1 ? " (group " + (gi + 1) + ")" : ""),
+        h("div", null,
+          g.commitments.map((c, i) => [i ? " \u00b7 " : null, link("output", c, short(c, 14))]),
+          h("div", { class: "dim" }, g.commitments.length + " output" + (g.commitments.length === 1 ? "" : "s") + " under one " + num(g.range_proof_bytes) + "-byte proof"))]),
+      ["weight", num(t.weight)],
+    ]));
+    row.appendChild(body);
+    list.appendChild(row);
+  });
+
+  view.replaceChildren(
+    h("div", { class: "title" }, h("h1", null, "Mempool"), h("span", { class: "dim" }, "transactions waiting, best fee rate first")),
+    h("div", { class: "kpis" },
+      kpi("waiting", num(m.count), "transactions"),
+      kpi("total fees", coins(m.fees), "MDW"),
+      kpi("weight", num(m.weight), "units"),
+      kpi("best fee rate", txs.length ? num(Math.round(rateOf(txs[0]))) : "\u2014", "units per weight", { small: true })),
+    section("Waiting", "refreshes every 5s",
+      txs.length ? h("div", { class: "charts" }, h("div", { class: "chart" },
+        h("div", { class: "k" }, "fee rate per transaction"),
+        barChart(txs.map(rateOf), { colour: themeColors().amber, label: (v, i) => num(Math.round(v)) + " units per weight \u00b7 " + short(txs[i].hash, 12) }))) : null),
+    section("Transactions", m.listed < m.count ? "showing " + num(m.listed) + " of " + num(m.count) : null,
+      txs.length ? list : h("div", { class: "empty" }, "nothing waiting")));
+  schedule(mempoolPage, 5000);
+}
+
+// ---------- network --------------------------------------------------------
+async function networkPage() {
+  const n = await get("/explorer/network");
+  const d = n.dandelion;
+  view.replaceChildren(
+    h("div", { class: "title" }, h("h1", null, "Network"), h("span", { class: "dim" }, "how a transaction reaches the chain, and who can watch it happen")),
+    h("div", { class: "kpis" },
+      kpi("outbound", num(n.outbound), "peers this node chose"),
+      kpi("inbound", num(n.inbound), "peers that dialled in"),
+      kpi("fluff chance", d.fluff_percent + "%", "at each hop"),
+      kpi("stem hops", d.expected_hops.toFixed(1), "expected", { small: true }),
+      kpi("embargo", d.stem_timeout_secs + "s", "stem timeout"),
+      kpi("banned", num(n.banned), "addresses")),
+    section("Dandelion++", "as this node would route a transaction right now", dandelionDiagram(d)),
+    section("Peers", num((n.peers || []).length) + " connected", peerMap(n)),
+    section("Who sees what", "hover the stem above", facts([
+      ["the peer you stem to", ["your address", "a transaction from you"], ["whether you wrote it"]],
+      ["a later stem hop", ["the hop before it"], ["where the stem began", "how long it already is"]],
+      ["first to see the fluff", ["a transaction"], ["its author", "how many were merged into it"]],
+      ["a node watching everything", ["timing", "who fluffed first"], ["certainty"]],
+      ["anyone with the chain", ["commitments", "kernels", "block shape"], ["amounts", "addresses", "senders"]],
+      ["anyone reading this page", ["peer ids", "directions", "transports"], ["peer addresses"]],
+    ]), h("div", { class: "note" }, "Timing is the real limit: enough well-connected nodes can still guess an origin. Dandelion++ raises the cost of that guess; it does not remove it.")));
+  schedule(networkPage, 15000);
+}
+
+// ---------- api ------------------------------------------------------------
+function apiValue(v) {
+  if (v == null) return h("span", { class: "dim" }, "\u2014");
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (Array.isArray(v)) return v.map(x => apiValue(x)).join(", ");
+  return h("span", null, Object.entries(v).map(([k, x], i) => [i ? " \u00b7 " : null, h("span", { class: "dim" }, k + ": "), apiValue(x)]));
+}
 async function apiPage() {
   const r = await get("/explorer/api");
   const endpoints = r.endpoints || {};
   view.replaceChildren(
-    h("div", { class: "title" }, h("h1", null, "API"), h("span", { class: "dim" }, "explorer JSON endpoints")),
-    section("Endpoints", null,
-      dl(Object.entries(endpoints).map(([path, desc]) => [
-        h("a", { href: path }, path),
-        h("span", null, String(desc))
-      ]))),
-    h("div", { class: "note" }, "All endpoints return JSON. Use /explorer/{blocks, block/:id, output/:id, kernel/:id, bonds, bond/:id, burn, search/:query, mempool, network, anchors, relay, api, chart/difficulty, chart/emission}."));
+    h("div", { class: "title" }, h("h1", null, "API"), h("span", { class: "dim" }, Object.keys(endpoints).length + " JSON endpoints")),
+    section("Endpoints", null, h("div", { class: "scroll" }, h("table", null,
+      h("thead", null, h("tr", null, h("th", null, "path"), h("th", null, "returns"))),
+      h("tbody", null, Object.entries(endpoints).map(([path, desc]) =>
+        h("tr", null, h("td", null, h("a", { href: path, class: "hash" }, path)), h("td", { style: "white-space:normal" }, apiValue(desc)))))))),
+    h("div", { class: "note", style: "border-top:0" },
+      "All endpoints return JSON. Base paths: /explorer/{blocks, block/:id, output/:id, kernel/:id, bonds, bond/:id, burn, search/:query, mempool, network, anchors, relay, api, chart/difficulty, chart/emission}."));
 }
 
 // ---------- anchors --------------------------------------------------------
@@ -1736,24 +1644,16 @@ async function anchorsPage() {
   view.replaceChildren(
     h("div", { class: "title" }, h("h1", null, "Anchoring"), h("span", { class: "dim" }, cps.length + " checkpoint" + (cps.length === 1 ? "" : "s"))),
     section("Finality", null, h("div", { class: "grid" },
-      r.finality.floor != null ? cell("floor", num(r.finality.floor)) : cell("floor", "—"),
+      r.finality.floor != null ? cell("floor", num(r.finality.floor)) : cell("floor", "\u2014"),
       r.finality.checkpoint_id ? cell("checkpoint id", h("span", { class: "hash" }, r.finality.checkpoint_id)) : null)),
     section("Checkpoints", null,
-      cps.length ? table(
-        ["height", "anchor tx", "depth", "confirmed"],
-        cps.map(c => [
-          link("block", c.height, num(c.height)),
-          c.anchor_tx
-            ? h("a", { href: c.anchor_tx.startsWith("0x") || c.anchor_tx.length === 64
-                ? "https://midstate.io/tx/" + c.anchor_tx
-                : "#", target: "_blank", rel: "noopener" }, short(c.anchor_tx, 14))
-            : h("span", { class: "dim" }, "—"),
-          c.depth != null ? String(c.depth) : "—",
-          c.confirmed ? tag("ok", "confirmed") : tag("warn", "pending"),
-        ]),
-        [0, 2]
-      ) : h("div", { class: "empty" }, "no checkpoints indexed"),
-      h("div", { class: "note" }, "Each checkpoint anchors the midwimble chain to midstate. The anchor tx commits the checkpoint id on midstate, and depth counts how many midstate blocks confirm it.")));
+      cps.length ? table(["height", "anchor tx", "depth", "confirmed"], cps.map(c => [
+        link("block", c.height, num(c.height)),
+        c.anchor_tx ? h("a", { href: "https://midstate.io/tx/" + c.anchor_tx, target: "_blank", rel: "noopener" }, short(c.anchor_tx, 14)) : h("span", { class: "dim" }, "\u2014"),
+        c.depth != null ? String(c.depth) : "\u2014",
+        c.confirmed ? tag("ok", "confirmed") : tag("warn", "pending"),
+      ]), [0, 2]) : h("div", { class: "empty" }, "no checkpoints indexed"),
+      h("div", { class: "note" }, "Each checkpoint anchors midwimble to midstate; depth counts midstate confirmations.")));
 }
 
 // ---------- relay ----------------------------------------------------------
@@ -1762,10 +1662,10 @@ async function relayPage() {
   view.replaceChildren(
     h("div", { class: "title" }, h("h1", null, "Relay"), h("span", { class: "dim" }, "midstate relay window")),
     section("Window", null, h("div", { class: "grid" },
-      cell("tip height", r.tip_height != null ? num(r.tip_height) : "—"),
-      cell("window size", r.window_size != null ? num(r.window_size) : "—"),
-      cell("entries", r.entries_count != null ? num(r.entries_count) : "—"))),
-    h("div", { class: "note" }, "The relay window carries midstate block headers to midwimble. Each entry records a midstate block; the tip is the newest header received."));
+      cell("tip height", r.tip_height != null ? num(r.tip_height) : "\u2014"),
+      cell("window size", r.window_size != null ? num(r.window_size) : "\u2014"),
+      cell("entries", r.entries_count != null ? num(r.entries_count) : "\u2014")),
+      h("div", { class: "note" }, "The relay window carries midstate block headers to midwimble.")));
 }
 
 // ---------- routing, refresh, search ---------------------------------------
@@ -1791,8 +1691,6 @@ const routes = [
   [/^#\/anchors$/, anchorsPage],
   [/^#\/relay$/, relayPage],
 ];
-// Keep the nav link for the page you are on lit. Detail pages light their
-// section, so a block still reads as "blocks" rather than nothing.
 const NAV_SECTION = { block: "blocks", output: "blocks", kernel: "blocks", bond: "bonds" };
 function markNav(hash) {
   const head = hash.replace(/^#?\/?/, "").split("/")[0];
@@ -1808,8 +1706,6 @@ async function route() {
   if (sseConn) { sseConn.close(); sseConn = null; }
   const hash = location.hash || "#/";
   markNav(hash);
-  // A block page reached from anywhere but another block starts on its
-  // overview; stepping between blocks keeps the tab the reader was on.
   if (hash.replace(/^#?\/?/, "").split("/")[0] !== "block") blockTab = "overview";
   const found = routes.find(([re]) => re.test(hash));
   window.scrollTo(0, 0);
@@ -1829,9 +1725,6 @@ document.getElementById("search").addEventListener("submit", async ev => {
 });
 document.getElementById('themeToggle')?.addEventListener('click', toggleTheme);
 
-// Mobile nav: the hamburger shows only under 860px (CSS), where the full nav
-// would otherwise wrap and push the page down. Opening it stacks the links
-// under the bar, and any navigation closes it again.
 const barTop = document.querySelector('.bar-top');
 const hamburger = document.getElementById('hamburger');
 function setNav(open) {
@@ -1839,9 +1732,7 @@ function setNav(open) {
   hamburger.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 hamburger?.addEventListener('click', () => setNav(!barTop.classList.contains('nav-open')));
-document.getElementById('mainnav')?.addEventListener('click', e => {
-  if (e.target.closest('a')) setNav(false);
-});
+document.getElementById('mainnav')?.addEventListener('click', e => { if (e.target.closest('a')) setNav(false); });
 window.addEventListener('hashchange', () => setNav(false));
 window.addEventListener("hashchange", route);
 (function initTheme() {
