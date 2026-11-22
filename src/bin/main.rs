@@ -306,8 +306,24 @@ enum Cmd {
         wallet: PathBuf,
         #[arg(long, default_value = "127.0.0.1:9434")]
         rpc: String,
+        /// A Midstate node's RPC (host:port), to pay `.mds` names: your own
+        /// by default. Its answer is checked against the name registry's root.
+        #[arg(long, default_value = midwimble::names::DEFAULT_MIDSTATE_RPC)]
+        midstate_rpc: String,
         #[command(subcommand)]
         action: WalletCmd,
+    },
+    /// What MDW address a `.mds` name gives, checked against the name
+    /// registry's root on Midstate.
+    Name {
+        name: String,
+        /// A Midstate node's RPC (host:port): your own by default.
+        #[arg(long, default_value = midwimble::names::DEFAULT_MIDSTATE_RPC)]
+        midstate_rpc: String,
+        /// This midwimble node's RPC: its relay of midstate headers vouches
+        /// for the state the registry coin is proven in.
+        #[arg(long, default_value = "127.0.0.1:9434")]
+        rpc: String,
     },
 }
 
@@ -371,7 +387,7 @@ enum WalletCmd {
     Balance,
     /// List known outputs.
     Coins,
-    /// Scan, then pay an address.
+    /// Scan, then pay an address, or a name (`nick.mds`).
     Send {
         #[arg(long)]
         to: String,
@@ -1773,9 +1789,27 @@ fn run(cli: Cli) -> Result<()> {
             out!("{}", client.post("/mining", &body)?);
             Ok(())
         }
+        Cmd::Name { name, midstate_rpc, rpc } => {
+            let midstate = RpcClient::new(midstate_rpc);
+            let r = midwimble::names::resolve(&midstate, &name)?;
+            out!("{}.mds → {}", r.name, r.address);
+            out!(
+                "Checked against the name registry's root {} (coin {}) at midstate height {}.",
+                hex::encode(r.root),
+                hex::encode(r.coin),
+                r.height
+            );
+            match midwimble::names::prove_coin(&midstate, &RpcClient::new(rpc), &r.coin) {
+                Ok(p) => out!("And {}.", p.describe()),
+                Err(e) => out!("The registry coin could not be proven on midstate's chain: {e:#}"),
+            }
+            out!("That this coin is the registry's own thread is your Midstate node's word.");
+            Ok(())
+        }
         Cmd::Wallet {
             wallet: path,
             rpc,
+            midstate_rpc,
             action,
         } => {
             let client = RpcClient::new(rpc);
@@ -1919,7 +1953,21 @@ fn run(cli: Cli) -> Result<()> {
                 WalletCmd::Send { to, amount, fee } => {
                     let amount = parse_amount(&amount)?;
                     let fee = fee.as_deref().map(parse_amount).transpose()?;
-                    let to = StealthAddress::decode(&to)?;
+                    let to = if midwimble::names::is_name(&to) {
+                        let midstate = RpcClient::new(midstate_rpc);
+                        let r = midwimble::names::resolve(&midstate, &to)?;
+                        out!("{}.mds pays {} (checked against the registry root at midstate height {})", r.name, r.address, r.height);
+                        // A coin the relay shows another chain's state for is
+                        // a lie: refuse. Otherwise say how far it was proven.
+                        match midwimble::names::prove_coin(&midstate, &client, &r.coin) {
+                            Ok(p @ midwimble::names::Proven::OtherChain { .. }) => bail!("not paying {}.mds: {}", r.name, p.describe()),
+                            Ok(p) => out!("And {}.", p.describe()),
+                            Err(e) => out!("The registry coin could not be proven on midstate's chain ({e:#}); paying on the registry root alone."),
+                        }
+                        StealthAddress::decode(&r.address)?
+                    } else {
+                        StealthAddress::decode(&to)?
+                    };
                     let mut w = Wallet::open(&path, &password()?)?;
                     let r = w.sync(&client)?;
                     report_sync(&w, &r, false);

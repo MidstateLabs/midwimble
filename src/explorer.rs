@@ -199,6 +199,10 @@ fn not_found(what: &str) -> ApiError {
     )
 }
 
+fn not_found_msg(msg: &str) -> ApiError {
+    (StatusCode::NOT_FOUND, Json(json!({ "error": msg })))
+}
+
 fn bad(e: impl std::fmt::Display) -> ApiError {
     (
         StatusCode::BAD_REQUEST,
@@ -908,11 +912,55 @@ pub async fn network(AxState(node): AxState<NodeHandle>) -> Json<Value> {
 
 /// What a search term names: a height, or a block hash, output commitment,
 /// kernel excess or bond id.
+/// `GET /explorer/name/{name}`: the MDW address a `.mds` name gives, checked
+/// against Midstate's name registry root (`crate::names`), through the
+/// Midstate node this node was given (`--midstate-rpc`).
+pub async fn name(AxState(node): AxState<NodeHandle>, Path(q): Path<String>) -> ApiResult {
+    let Some(rpc) = node.midstate_rpc() else {
+        return Err(not_found_msg("this node was started without --midstate-rpc, so it cannot look up .mds names"));
+    };
+    // This node's own relay vouches for (or not) the state the coin is proven in.
+    let relay: std::collections::HashMap<u64, [u8; 32]> =
+        node.state().relay.entries().filter(|e| !e.is_root()).map(|e| (e.height, e.state_root)).collect();
+    let relay_tip = node.state().relay.tip().height;
+    let (r, proven) = tokio::task::spawn_blocking(move || {
+        let client = crate::rpc::RpcClient::new(rpc);
+        let r = crate::names::resolve(&client, &q)?;
+        let v = client.get(&format!("/utxo_proof/{}", hex::encode(r.coin)))?;
+        let proven = crate::names::check_coin(&r.coin, &v, |h| relay.get(&h).copied(), relay_tip);
+        anyhow::Ok((r, proven))
+    })
+    .await
+    .map_err(internal)?
+    .map_err(|e| not_found_msg(&format!("{e:#}")))?;
+    let (proven_text, relayed) = match &proven {
+        // The relay contradicts the node: show no address on its word.
+        Ok(p @ crate::names::Proven::OtherChain { .. }) => return Err(not_found_msg(&format!("{}.mds: {}", r.name, p.describe()))),
+        Ok(p) => (p.describe(), matches!(p, crate::names::Proven::Relayed { .. })),
+        Err(e) => (format!("{e:#}"), false),
+    };
+    Ok(Json(json!({
+        "name": format!("{}{}", r.name, crate::names::SUFFIX),
+        "address": r.address,
+        "midstate_height": r.height,
+        "registry_root": hex::encode(r.root),
+        "registry_coin": hex::encode(r.coin),
+        // Proven against this node's relay of midstate headers, or why not.
+        "coin_relayed": relayed,
+        "coin_proof": proven_text,
+        "checked": "the records match the registry root by their Merkle proof, and the root is the commitment of the registry coin named; that coin being the registry's own thread is the Midstate node's word",
+    })))
+}
+
 pub async fn search(
     AxState(node): AxState<NodeHandle>,
     Extension(index): Extension<SharedIndex>,
     Path(q): Path<String>,
 ) -> ApiResult {
+    if crate::names::is_name(&q) {
+        let name = crate::names::normalize(&q).map_err(|e| not_found_msg(&e.to_string()))?;
+        return Ok(Json(json!({ "kind": "name", "id": name })));
+    }
     with_index(node, index, move |idx, node| {
         let q = q.trim().to_ascii_lowercase();
         let found = |kind: &str, id: String| Ok(Json(json!({ "kind": kind, "id": id })));

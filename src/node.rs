@@ -302,9 +302,17 @@ pub struct NodeHandle {
     /// Co-bonds handed in while it runs, when it mines with a bond.
     co_bonds: Option<Arc<crate::co_bonds::CoBondBook>>,
     relay_feed: Arc<RwLock<RelayFeed>>,
+    /// The Midstate node this one was given (`--midstate-rpc`), for `.mds`
+    /// names in the explorer.
+    midstate_rpc: Option<String>,
 }
 
 impl NodeHandle {
+    /// The Midstate node this one was given, if any.
+    pub fn midstate_rpc(&self) -> Option<String> {
+        self.midstate_rpc.clone()
+    }
+
     /// The midstate headers this node has to relay, for the template RPC.
     pub fn relay_feed(&self) -> Arc<RwLock<RelayFeed>> {
         self.relay_feed.clone()
@@ -844,6 +852,7 @@ impl Node {
             storage: storage.clone(),
             commands: cmd_tx,
             relay_feed: relay_feed.clone(),
+            midstate_rpc: config.midstate_rpc.clone(),
         };
 
         let mut node = Node {

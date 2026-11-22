@@ -24,6 +24,8 @@ pub mod merge_mine;
 #[cfg(feature = "node")]
 pub mod miner;
 #[cfg(feature = "node")]
+pub mod names;
+#[cfg(feature = "node")]
 pub mod network;
 #[cfg(feature = "node")]
 pub mod node;

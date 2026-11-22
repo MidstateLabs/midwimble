@@ -1195,6 +1195,27 @@ async function kernelPage(m) {
       ]), h("div", { class: "note" }, "A kernel proves a transaction balanced and pays the fee, without saying which inputs or outputs were its own.")));
 }
 
+// ---------- names ----------------------------------------------------------
+// A .mds name from Midstate's name registry, resolved by this node's Midstate
+// node and checked against the registry's root with its Merkle proof.
+async function namePage(m) {
+  const n = await get("/explorer/name/" + m[1]);
+  view.replaceChildren(
+    h("div", { class: "title" }, h("h1", null, n.name)),
+    section("Name", null,
+      dl([
+        ["pays MDW to", full(n.address)],
+        ["checked at", "midstate block " + num(n.midstate_height)],
+        ["registry root", full(n.registry_root)],
+        ["registry coin", full(n.registry_coin)],
+        ["coin proven", (n.coin_relayed ? "on the relayed chain: " : "") + (n.coin_proof || "not checked")],
+      ]),
+      h("div", { class: "note" }, "A midstate name. Its records are checked against the name registry's root by their Merkle proof, " +
+        "and the registry coin is proven unspent in the state of a midstate header this node's relay holds; " +
+        "that the coin is the registry's own thread is the Midstate node's word. An MDW address is a stealth address: " +
+        "payments to it are not visible on chain as such.")));
+}
+
 // ---------- bonds ----------------------------------------------------------
 function bondTable(r, limit) {
   const w = r.window;
@@ -1801,6 +1822,7 @@ const routes = [
   [/^#\/api$/, apiPage],
   [/^#\/anchors$/, anchorsPage],
   [/^#\/relay$/, relayPage],
+  [/^#\/name\/([a-z0-9-]{1,32})$/, namePage],
 ];
 const NAV_SECTION = { block: "blocks", output: "blocks", kernel: "blocks", bond: "bonds" };
 function markNav(hash) {

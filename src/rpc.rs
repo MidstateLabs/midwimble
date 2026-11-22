@@ -85,6 +85,7 @@ pub fn router_with(node: NodeHandle, options: &RpcOptions, index: SharedIndex) -
         .route("/blocks/{start}/{count}", get(blocks))
         .route("/bonds", get(bonds))
         .route("/relay", get(relay))
+        .route("/relay/{height}", get(relay_at))
         .route("/merge/job", post(merge_job))
         .route("/merge/found", post(merge_found))
         .route("/co-bonds", get(co_bonds_list).post(co_bonds_add))
@@ -115,6 +116,7 @@ pub fn router_with(node: NodeHandle, options: &RpcOptions, index: SharedIndex) -
         .route("/explorer/bond/{id}", get(crate::explorer::bond))
         .route("/explorer/burn", get(crate::explorer::burn::burn))
         .route("/explorer/search/{q}", get(crate::explorer::search))
+        .route("/explorer/name/{name}", get(crate::explorer::name))
         .route("/explorer/events", get(crate::explorer::events))
         .route(
             "/explorer/chart/difficulty",
@@ -161,6 +163,7 @@ pub fn explorer_router(node: NodeHandle, index: SharedIndex) -> Router {
         .route("/explorer/bond/{id}", get(crate::explorer::bond))
         .route("/explorer/burn", get(crate::explorer::burn::burn))
         .route("/explorer/search/{q}", get(crate::explorer::search))
+        .route("/explorer/name/{name}", get(crate::explorer::name))
         .route("/explorer/events", get(crate::explorer::events))
         .route(
             "/explorer/chart/difficulty",
@@ -318,6 +321,28 @@ async fn relay(AxState(node): AxState<NodeHandle>) -> Json<Value> {
         "feed_tip_height": feed.tip_height(),
         "would_relay": feed.next_for(&state.relay).map_or(0, |r| r.headers.len()),
     }))
+}
+
+/// `GET /relay/{height}`: the midstate header the relay holds at `height`,
+/// with the state root proofs against it are checked against (a `.mds`
+/// name's registry coin, `crate::names::prove_coin`). Not found outside the
+/// relay's window, and for its root, whose state is not known.
+async fn relay_at(AxState(node): AxState<NodeHandle>, Path(height): Path<u64>) -> ApiResult {
+    let state = node.state();
+    let tip = state.relay.tip().height;
+    match state.relay.get(height).filter(|e| !e.is_root()) {
+        Some(e) => Ok(Json(json!({
+            "height": e.height,
+            "hash": hex::encode(e.hash),
+            "state_root": hex::encode(e.state_root),
+            "timestamp": e.timestamp,
+            "tip_height": tip,
+        }))),
+        None => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": format!("the relay holds no midstate header at {height}"), "tip_height": tip })),
+        )),
+    }
 }
 
 /// The registered mining bonds that can still sign (expired ones leave the

@@ -589,6 +589,27 @@ let gatewayAt = 0;
 let gwQueue = Promise.resolve(); // serialize gateway calls so a bulk scan can't stampede the limiter
 let gwLast = 0;
 const GW_SPACING = 120;          // ms between gateway calls (~8/s, under a 10 r/s nginx limit)
+/** A `.mds` name's MDW address, as a gateway node resolves it: through its
+ *  Midstate node, checked against the name registry's root by its Merkle
+ *  proof, and the registry coin proven against the midstate headers the
+ *  node's relay holds (`GET /explorer/name/{name}`). The wallet takes the
+ *  gateway's word for that check, as it does for the chain. */
+async function resolveName(name) {
+    const gws = gateways();
+    if (!gws.length) throw new Error('names are looked up through a gateway, and none is set');
+    let last;
+    for (const g of gws) {
+        const base = g.replace(/\/+$/, '');
+        try {
+            const res = await fetch(base + '/explorer/name/' + encodeURIComponent(name.trim().toLowerCase().replace(/\.mds$/, '')), { signal: AbortSignal.timeout(20_000) });
+            const v = await res.json();
+            if (!res.ok || v.error) throw new Error(v.error || `gateway HTTP ${res.status}`);
+            return { name: v.name, address: v.address, proven: v.coin_relayed === true, via: new URL(base).host };
+        } catch (e) { last = e; }
+    }
+    throw last || new Error('no gateway could look the name up');
+}
+
 /** One light request over HTTPS to a gateway's /light endpoint. The request
  *  and response are the same shape as the WebRTC light stream, so callers get
  *  back `data` exactly as from `LightClient.call`. Calls are serialized and
@@ -1381,7 +1402,7 @@ function sendScreen() {
         return { title: 'Send', els: [group(textRow('This is a watch-only wallet: it can see payments to its address but holds no keys to spend them.'))] };
     }
     const d = app.draft;
-    const to = textArea({ placeholder: 'mw1…', 'aria-label': 'Send to' }, d.to);
+    const to = textArea({ placeholder: 'mw1… or name.mds', 'aria-label': 'Send to' }, d.to);
     const amt = h('input', { inputmode: 'decimal', autocomplete: 'off', placeholder: '0.00', 'aria-label': 'Amount' });
     amt.value = d.amount;
     const quoteNote = note();
@@ -1439,14 +1460,22 @@ function sendScreen() {
     const review = h('button', { class: 'btn primary', type: 'submit' }, 'Review payment');
     const form = h('form', { onsubmit: async (e) => {
         e.preventDefault();
-        const dest = to.value.trim();
+        let dest = to.value.trim();
+        // A name: pay the MDW address its records give, as a gateway checked it.
+        let named = null;
+        if (/\.mds$/i.test(dest)) {
+            quoteText = 'Looking up ' + dest + '…'; drawQuote();
+            try { named = await resolveName(dest); dest = named.address; quoteText = ''; drawQuote(); }
+            catch (x) { toRow.classList.add('bad'); quoteText = '!' + capital(errOf(x)); drawQuote(); return; }
+        }
         try { await ask('check-address', { to: dest }); toRow.classList.remove('bad'); }
-        catch (x) { toRow.classList.add('bad'); quoteText = '!That isn’t a midwimble address. It starts with mw1.'; drawQuote(); return; }
+        catch (x) { toRow.classList.add('bad'); quoteText = named ? '!' + named.name + ' gives an address this wallet cannot pay.' : '!That isn’t a midwimble address. It starts with mw1, or ends in .mds.'; drawQuote(); return; }
         let q;
         try { q = await ask('quote', { amount: amt.value.trim(), coins: d.coins }); }
         catch (x) { quoteText = '!' + capital(errOf(x)); drawQuote(); return; }
         const own = app.state && dest === app.state.address;
-        const go = await actionSheet([`Send `, h('b', null, withUnit(q.amount)), ` to ${shortAddr(dest)}${own ? ' (this wallet)' : ''}? The network fee is ${coins(q.fee)}, for ${withUnit(q.amount + q.fee)} in all.`],
+        const whom = named ? `${named.name} (${shortAddr(dest)}, as ${named.via} looked it up${named.proven ? ' and proved it on midstate\'s relayed chain' : ''})` : shortAddr(dest);
+        const go = await actionSheet([`Send `, h('b', null, withUnit(q.amount)), ` to ${whom}${own ? ' (this wallet)' : ''}? The network fee is ${coins(q.fee)}, for ${withUnit(q.amount + q.fee)} in all.`],
             [{ label: 'Send payment', value: true, cls: 'primary' }, { label: 'Cancel', value: null, cls: 'plain' }]);
         if (!go) return;
         if (settings.passwordToSend) {
